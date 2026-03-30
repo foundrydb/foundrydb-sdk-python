@@ -16,17 +16,17 @@ from foundrydb import FoundryDB, AsyncFoundryDB
 
 API_URL = "https://api.foundrydb.com"
 USERNAME = "admin"
-PASSWORD = "0BYjYyWhb5MW96LVIXqE"
+PASSWORD = "admin"
 
 # Known live services and their expected database types.
 EXPECTED_SERVICES = {
-    "a65ea369-7a0d-460f-8289-09bf031ed7fc": "postgresql",
-    "0f535f8e-fe90-4c61-86a6-9291e4153921": "mysql",
-    "b812422b-1869-4e9c-b698-9fdfcbebf75d": "mongodb",
-    "c5f66c4f-dee3-49e5-8b77-5356f875043b": "valkey",
-    "190d4aaf-3224-48f9-a144-d4cfe09b45e8": "kafka",
-    "fd401c8a-97c5-429e-9e9d-bb503e664856": "opensearch",
-    "1ad021f7-a954-44a8-b829-af6501045a3e": "mssql",
+    "7d7d49fd-bc10-4696-98bf-0e7314897b73": "postgresql",
+    "9fd0b367-a58d-40e1-8a1d-f61a59ca25a8": "mysql",
+    "f209c068-488e-46ad-b326-b2e938ff91a5": "mongodb",
+    "0f95cca8-8469-4b91-a0f3-7c98dec1520a": "valkey",
+    "0b8a5750-7733-4eb2-aabc-3147b447a1b9": "kafka",
+    "cd1d7cd1-6be8-457d-9be0-fd3dd8dfebfe": "opensearch",
+    "3149d460-3a45-4f72-8217-02e946d7f5da": "mssql",
 }
 
 passed = 0
