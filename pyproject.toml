@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "foundrydb"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python SDK for the FoundryDB managed database platform"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Anorph" }]
-keywords = ["foundrydb", "managed-database", "postgresql", "mysql", "mongodb", "valkey", "kafka"]
+keywords = ["foundrydb", "managed-database", "postgresql", "mysql", "mongodb", "valkey", "kafka", "opensearch", "mssql"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

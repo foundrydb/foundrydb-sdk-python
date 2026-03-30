@@ -4,7 +4,94 @@ FoundryDB SDK - Python data models and type definitions.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
+
+# Supported database engine types.
+# postgresql: 14, 15, 16, 17, 18
+# mysql: 8.4
+# mongodb: 6.0, 7.0, 8.0
+# valkey: 7.2, 8.0, 8.1, 9.0
+# kafka: 3.6, 3.7, 3.8, 3.9, 4.0
+# opensearch: 2.19
+# mssql: 4.8
+DatabaseType = Literal[
+    "postgresql",
+    "mysql",
+    "mongodb",
+    "valkey",
+    "kafka",
+    "opensearch",
+    "mssql",
+]
+
+
+# ---- Organization models ----
+
+@dataclass
+class Organization:
+    """Represents a FoundryDB organization (personal or team)."""
+
+    id: str
+    name: str
+    slug: str
+    is_personal: bool
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Organization":
+        return cls(
+            id=d.get("id", ""),
+            name=d.get("name", ""),
+            slug=d.get("slug", ""),
+            is_personal=d.get("is_personal", False),
+            raw=d,
+        )
+
+
+# ---- Service creation request ----
+
+@dataclass
+class CreateServiceRequest:
+    """Parameters for creating a new managed service."""
+
+    name: str
+    database_type: DatabaseType
+    version: str
+    plan_name: str
+    zone: str
+    storage_size_gb: int
+    storage_tier: str
+    organization_id: Optional[str] = None
+    node_count: Optional[int] = None
+    auto_failover_enabled: Optional[bool] = None
+    replication_mode: Optional[str] = None
+    encryption_enabled: Optional[bool] = None
+    allowed_cidrs: Optional[List[str]] = None
+    maintenance_window: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        body: Dict[str, Any] = {
+            "name": self.name,
+            "database_type": self.database_type,
+            "version": self.version,
+            "plan_name": self.plan_name,
+            "zone": self.zone,
+            "storage_size_gb": self.storage_size_gb,
+            "storage_tier": self.storage_tier,
+        }
+        if self.node_count is not None:
+            body["node_count"] = self.node_count
+        if self.auto_failover_enabled is not None:
+            body["auto_failover_enabled"] = self.auto_failover_enabled
+        if self.replication_mode is not None:
+            body["replication_mode"] = self.replication_mode
+        if self.encryption_enabled is not None:
+            body["encryption_enabled"] = self.encryption_enabled
+        if self.allowed_cidrs is not None:
+            body["allowed_cidrs"] = self.allowed_cidrs
+        if self.maintenance_window is not None:
+            body["maintenance_window"] = self.maintenance_window
+        return body
 
 
 # ---- Service models ----

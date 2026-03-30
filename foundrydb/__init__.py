@@ -33,7 +33,10 @@ Async usage::
 
 from .client import FoundryDB, AsyncFoundryDB
 from .types import (
+    DatabaseType,
+    CreateServiceRequest,
     FoundryDBError,
+    Organization,
     Service,
     DNSRecord,
     DatabaseUser,
@@ -48,12 +51,16 @@ from .services import ServicesAPI, AsyncServicesAPI
 from .users import UsersAPI, AsyncUsersAPI
 from .backups import BackupsAPI, AsyncBackupsAPI
 from .monitoring import MonitoringAPI, AsyncMonitoringAPI
+from .organizations import OrganizationsAPI, AsyncOrganizationsAPI
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
     "FoundryDB",
     "AsyncFoundryDB",
+    "DatabaseType",
+    "CreateServiceRequest",
     "FoundryDBError",
+    "Organization",
     "Service",
     "DNSRecord",
     "DatabaseUser",
@@ -71,4 +78,6 @@ __all__ = [
     "AsyncBackupsAPI",
     "MonitoringAPI",
     "AsyncMonitoringAPI",
+    "OrganizationsAPI",
+    "AsyncOrganizationsAPI",
 ]
