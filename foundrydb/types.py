@@ -68,6 +68,13 @@ class CreateServiceRequest:
     encryption_enabled: Optional[bool] = None
     allowed_cidrs: Optional[List[str]] = None
     maintenance_window: Optional[str] = None
+    preset: Optional[str] = None
+    is_ephemeral: Optional[bool] = None
+    ttl_hours: Optional[int] = None
+    created_by_agent_id: Optional[str] = None
+    agent_framework: Optional[str] = None
+    agent_purpose: Optional[str] = None
+    labels: Optional[Dict[str, str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         body: Dict[str, Any] = {
@@ -91,6 +98,20 @@ class CreateServiceRequest:
             body["allowed_cidrs"] = self.allowed_cidrs
         if self.maintenance_window is not None:
             body["maintenance_window"] = self.maintenance_window
+        if self.preset is not None:
+            body["preset"] = self.preset
+        if self.is_ephemeral is not None:
+            body["is_ephemeral"] = self.is_ephemeral
+        if self.ttl_hours is not None:
+            body["ttl_hours"] = self.ttl_hours
+        if self.created_by_agent_id is not None:
+            body["created_by_agent_id"] = self.created_by_agent_id
+        if self.agent_framework is not None:
+            body["agent_framework"] = self.agent_framework
+        if self.agent_purpose is not None:
+            body["agent_purpose"] = self.agent_purpose
+        if self.labels is not None:
+            body["labels"] = self.labels
         return body
 
 
@@ -129,6 +150,13 @@ class Service:
     dns_records: List[DNSRecord] = field(default_factory=list)
     allowed_cidrs: List[str] = field(default_factory=list)
     maintenance_window: Optional[str] = None
+    is_ephemeral: Optional[bool] = None
+    ttl_hours: Optional[int] = None
+    scheduled_deletion_at: Optional[str] = None
+    preset: Optional[str] = None
+    agent_framework: Optional[str] = None
+    agent_purpose: Optional[str] = None
+    labels: Optional[Dict[str, str]] = None
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
 
     @classmethod
@@ -149,6 +177,13 @@ class Service:
             dns_records=dns,
             allowed_cidrs=d.get("allowed_cidrs", []),
             maintenance_window=d.get("maintenance_window"),
+            is_ephemeral=d.get("is_ephemeral"),
+            ttl_hours=d.get("ttl_hours"),
+            scheduled_deletion_at=d.get("scheduled_deletion_at"),
+            preset=d.get("preset"),
+            agent_framework=d.get("agent_framework"),
+            agent_purpose=d.get("agent_purpose"),
+            labels=d.get("labels"),
             raw=d,
         )
 
@@ -283,6 +318,53 @@ class LogsResultResponse:
         return cls(
             status=d.get("status", ""),
             logs=d.get("logs", ""),
+        )
+
+
+# ---- Preset models ----
+
+@dataclass
+class ServicePreset:
+    """A predefined service configuration template."""
+
+    id: str
+    name: str
+    description: str
+    database_type: str
+    default_version: str
+    default_plan: str
+    default_storage_gb: int
+    default_storage_tier: str
+    config_template_id: Optional[str] = None
+    is_ephemeral: Optional[bool] = None
+    default_ttl_hours: Optional[int] = None
+    node_count: Optional[int] = None
+    replication_mode: Optional[str] = None
+    extensions: List[str] = field(default_factory=list)
+    recommended_features: List[str] = field(default_factory=list)
+    tags: List[str] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ServicePreset":
+        return cls(
+            id=d.get("id", ""),
+            name=d.get("name", ""),
+            description=d.get("description", ""),
+            database_type=d.get("database_type", ""),
+            default_version=d.get("default_version", ""),
+            default_plan=d.get("default_plan", ""),
+            default_storage_gb=d.get("default_storage_gb", 0),
+            default_storage_tier=d.get("default_storage_tier", ""),
+            config_template_id=d.get("config_template_id"),
+            is_ephemeral=d.get("is_ephemeral"),
+            default_ttl_hours=d.get("default_ttl_hours"),
+            node_count=d.get("node_count"),
+            replication_mode=d.get("replication_mode"),
+            extensions=d.get("extensions", []),
+            recommended_features=d.get("recommended_features", []),
+            tags=d.get("tags", []),
+            raw=d,
         )
 
 

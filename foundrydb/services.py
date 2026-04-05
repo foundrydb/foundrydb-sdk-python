@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from .client import HTTPClient, AsyncHTTPClient
-from .types import CreateServiceRequest, DatabaseType, Service
+from .types import CreateServiceRequest, DatabaseType, Service, ServicePreset
 
 
 class ServicesAPI:
@@ -37,6 +37,13 @@ class ServicesAPI:
         encryption_enabled: Optional[bool] = None,
         allowed_cidrs: Optional[List[str]] = None,
         maintenance_window: Optional[str] = None,
+        preset: Optional[str] = None,
+        is_ephemeral: Optional[bool] = None,
+        ttl_hours: Optional[int] = None,
+        created_by_agent_id: Optional[str] = None,
+        agent_framework: Optional[str] = None,
+        agent_purpose: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
     ) -> Service:
         """Create a new managed service.
 
@@ -59,6 +66,16 @@ class ServicesAPI:
             allowed_cidrs: IP CIDRs allowed to connect. Defaults to no
                 restrictions when omitted.
             maintenance_window: Preferred maintenance window string.
+            preset: Service preset identifier (e.g. "agent-valkey-session").
+            is_ephemeral: Mark the service as ephemeral (auto-deleted after TTL).
+            ttl_hours: Auto-delete the service after this many hours (1-720).
+            created_by_agent_id: Identifier of the AI agent that created
+                this service.
+            agent_framework: AI agent framework name (e.g. "langchain",
+                "crewai", "autogen", "claude").
+            agent_purpose: Purpose of the service for the agent (e.g.
+                "conversation_history", "session_cache").
+            labels: Custom key-value labels for the service.
         """
         req = CreateServiceRequest(
             name=name,
@@ -75,6 +92,13 @@ class ServicesAPI:
             encryption_enabled=encryption_enabled,
             allowed_cidrs=allowed_cidrs,
             maintenance_window=maintenance_window,
+            preset=preset,
+            is_ephemeral=is_ephemeral,
+            ttl_hours=ttl_hours,
+            created_by_agent_id=created_by_agent_id,
+            agent_framework=agent_framework,
+            agent_purpose=agent_purpose,
+            labels=labels,
         )
         body = req.to_dict()
         # Per-request org override takes precedence over the client-level header.
@@ -118,6 +142,11 @@ class ServicesAPI:
         """Delete a managed service."""
         self._http.delete(f"/managed-services/{service_id}")
 
+    def list_presets(self) -> List[ServicePreset]:
+        """List available service presets."""
+        data = self._http.get("/managed-services/presets")
+        return [ServicePreset.from_dict(p) for p in data.get("presets", [])]
+
 
 class AsyncServicesAPI:
     """Manages FoundryDB managed services (async)."""
@@ -147,6 +176,13 @@ class AsyncServicesAPI:
         encryption_enabled: Optional[bool] = None,
         allowed_cidrs: Optional[List[str]] = None,
         maintenance_window: Optional[str] = None,
+        preset: Optional[str] = None,
+        is_ephemeral: Optional[bool] = None,
+        ttl_hours: Optional[int] = None,
+        created_by_agent_id: Optional[str] = None,
+        agent_framework: Optional[str] = None,
+        agent_purpose: Optional[str] = None,
+        labels: Optional[Dict[str, str]] = None,
     ) -> Service:
         """Create a new managed service.
 
@@ -169,6 +205,16 @@ class AsyncServicesAPI:
             allowed_cidrs: IP CIDRs allowed to connect. Defaults to no
                 restrictions when omitted.
             maintenance_window: Preferred maintenance window string.
+            preset: Service preset identifier (e.g. "agent-valkey-session").
+            is_ephemeral: Mark the service as ephemeral (auto-deleted after TTL).
+            ttl_hours: Auto-delete the service after this many hours (1-720).
+            created_by_agent_id: Identifier of the AI agent that created
+                this service.
+            agent_framework: AI agent framework name (e.g. "langchain",
+                "crewai", "autogen", "claude").
+            agent_purpose: Purpose of the service for the agent (e.g.
+                "conversation_history", "session_cache").
+            labels: Custom key-value labels for the service.
         """
         req = CreateServiceRequest(
             name=name,
@@ -185,6 +231,13 @@ class AsyncServicesAPI:
             encryption_enabled=encryption_enabled,
             allowed_cidrs=allowed_cidrs,
             maintenance_window=maintenance_window,
+            preset=preset,
+            is_ephemeral=is_ephemeral,
+            ttl_hours=ttl_hours,
+            created_by_agent_id=created_by_agent_id,
+            agent_framework=agent_framework,
+            agent_purpose=agent_purpose,
+            labels=labels,
         )
         body = req.to_dict()
         extra_headers: Dict[str, str] = {}
@@ -226,3 +279,8 @@ class AsyncServicesAPI:
     async def delete(self, service_id: str) -> None:
         """Delete a managed service."""
         await self._http.delete(f"/managed-services/{service_id}")
+
+    async def list_presets(self) -> List[ServicePreset]:
+        """List available service presets."""
+        data = await self._http.get("/managed-services/presets")
+        return [ServicePreset.from_dict(p) for p in data.get("presets", [])]
