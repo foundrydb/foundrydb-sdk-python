@@ -47,14 +47,26 @@ from .types import (
     ServiceMetrics,
     LogsTaskResponse,
     LogsResultResponse,
+    AppContainerConfig,
+    AppService,
+    ServiceAttachment,
+    SmtpConfig,
+    AuthTheme,
+    IdpProviderRequest,
+    IdpProviderConfig,
+    AuthEnableRequest,
+    AuthConfiguration,
+    AuthSigningKey,
+    AuthConfigurationWithKeys,
 )
 from .services import ServicesAPI, AsyncServicesAPI
 from .users import UsersAPI, AsyncUsersAPI
 from .backups import BackupsAPI, AsyncBackupsAPI
 from .monitoring import MonitoringAPI, AsyncMonitoringAPI
 from .organizations import OrganizationsAPI, AsyncOrganizationsAPI
+from .app_services import AppServicesAPI, AsyncAppServicesAPI
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __all__ = [
     "FoundryDB",
     "AsyncFoundryDB",
@@ -72,6 +84,17 @@ __all__ = [
     "ServiceMetrics",
     "LogsTaskResponse",
     "LogsResultResponse",
+    "AppContainerConfig",
+    "AppService",
+    "ServiceAttachment",
+    "SmtpConfig",
+    "AuthTheme",
+    "IdpProviderRequest",
+    "IdpProviderConfig",
+    "AuthEnableRequest",
+    "AuthConfiguration",
+    "AuthSigningKey",
+    "AuthConfigurationWithKeys",
     "ServicesAPI",
     "AsyncServicesAPI",
     "UsersAPI",
@@ -82,4 +105,6 @@ __all__ = [
     "AsyncMonitoringAPI",
     "OrganizationsAPI",
     "AsyncOrganizationsAPI",
+    "AppServicesAPI",
+    "AsyncAppServicesAPI",
 ]

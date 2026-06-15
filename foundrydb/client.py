@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from .backups import BackupsAPI, AsyncBackupsAPI
     from .monitoring import MonitoringAPI, AsyncMonitoringAPI
     from .organizations import OrganizationsAPI, AsyncOrganizationsAPI
+    from .app_services import AppServicesAPI, AsyncAppServicesAPI
 
 
 def _build_auth_header(username: str, password: str) -> str:
@@ -208,6 +209,7 @@ class FoundryDB:
         from .backups import BackupsAPI
         from .monitoring import MonitoringAPI
         from .organizations import OrganizationsAPI
+        from .app_services import AppServicesAPI
 
         http = HTTPClient(api_url, username, password, timeout, organization_id=organization_id)
         self.services: ServicesAPI = ServicesAPI(http)
@@ -215,6 +217,7 @@ class FoundryDB:
         self.backups: BackupsAPI = BackupsAPI(http)
         self.monitoring: MonitoringAPI = MonitoringAPI(http)
         self.organizations: OrganizationsAPI = OrganizationsAPI(http)
+        self.app_services: AppServicesAPI = AppServicesAPI(http)
 
     def close(self) -> None:
         self.services._http.close()  # type: ignore[attr-defined]
@@ -269,6 +272,7 @@ class AsyncFoundryDB:
         from .backups import AsyncBackupsAPI
         from .monitoring import AsyncMonitoringAPI
         from .organizations import AsyncOrganizationsAPI
+        from .app_services import AsyncAppServicesAPI
 
         http = AsyncHTTPClient(api_url, username, password, timeout, organization_id=organization_id)
         self.services: AsyncServicesAPI = AsyncServicesAPI(http)
@@ -276,6 +280,7 @@ class AsyncFoundryDB:
         self.backups: AsyncBackupsAPI = AsyncBackupsAPI(http)
         self.monitoring: AsyncMonitoringAPI = AsyncMonitoringAPI(http)
         self.organizations: AsyncOrganizationsAPI = AsyncOrganizationsAPI(http)
+        self.app_services: AsyncAppServicesAPI = AsyncAppServicesAPI(http)
 
     async def aclose(self) -> None:
         await self.services._http.aclose()  # type: ignore[attr-defined]

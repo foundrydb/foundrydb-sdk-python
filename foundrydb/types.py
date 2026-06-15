@@ -368,6 +368,371 @@ class ServicePreset:
         )
 
 
+# ---- App service models ----
+
+@dataclass
+class AppContainerConfig:
+    """Container configuration for an app service."""
+
+    image_ref: str
+    container_port: int
+    env: Optional[Dict[str, str]] = None
+    custom_domains: Optional[List[str]] = None
+    registry_username: Optional[str] = None
+    health_check_path: Optional[str] = None
+    health_check_interval_seconds: Optional[int] = None
+    health_check_timeout_seconds: Optional[int] = None
+    health_check_healthy_threshold: Optional[int] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AppContainerConfig":
+        return cls(
+            image_ref=d.get("image_ref", ""),
+            container_port=d.get("container_port", 0),
+            env=d.get("env"),
+            custom_domains=d.get("custom_domains"),
+            registry_username=d.get("registry_username"),
+            health_check_path=d.get("health_check_path"),
+            health_check_interval_seconds=d.get("health_check_interval_seconds"),
+            health_check_timeout_seconds=d.get("health_check_timeout_seconds"),
+            health_check_healthy_threshold=d.get("health_check_healthy_threshold"),
+            raw=d,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        body: Dict[str, Any] = {
+            "image_ref": self.image_ref,
+            "container_port": self.container_port,
+        }
+        if self.env is not None:
+            body["env"] = self.env
+        if self.custom_domains is not None:
+            body["custom_domains"] = self.custom_domains
+        if self.registry_username is not None:
+            body["registry_username"] = self.registry_username
+        if self.health_check_path is not None:
+            body["health_check_path"] = self.health_check_path
+        if self.health_check_interval_seconds is not None:
+            body["health_check_interval_seconds"] = self.health_check_interval_seconds
+        if self.health_check_timeout_seconds is not None:
+            body["health_check_timeout_seconds"] = self.health_check_timeout_seconds
+        if self.health_check_healthy_threshold is not None:
+            body["health_check_healthy_threshold"] = self.health_check_healthy_threshold
+        return body
+
+
+@dataclass
+class ServiceAttachment:
+    """A database or app attached to an app service."""
+
+    id: str
+    attached_service_id: str
+    status: str
+    env_prefix: Optional[str] = None
+    error_message: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ServiceAttachment":
+        return cls(
+            id=d.get("id", ""),
+            attached_service_id=d.get("attached_service_id", ""),
+            status=d.get("status", ""),
+            env_prefix=d.get("env_prefix"),
+            error_message=d.get("error_message"),
+            raw=d,
+        )
+
+
+@dataclass
+class AppService:
+    """A container app hosted on the platform."""
+
+    id: str
+    name: str
+    service_kind: str
+    status: str
+    zone: str
+    plan_name: str
+    storage_size_gb: int
+    created_at: str
+    updated_at: str
+    app_config: Optional[AppContainerConfig] = None
+    url: Optional[str] = None
+    attachments: List[ServiceAttachment] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AppService":
+        cfg = AppContainerConfig.from_dict(d["app_config"]) if d.get("app_config") else None
+        attachments = [ServiceAttachment.from_dict(a) for a in d.get("attachments", [])]
+        return cls(
+            id=d.get("id", ""),
+            name=d.get("name", ""),
+            service_kind=d.get("service_kind", "app"),
+            status=d.get("status", ""),
+            zone=d.get("zone", ""),
+            plan_name=d.get("plan_name", ""),
+            storage_size_gb=d.get("storage_size_gb", 0),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            app_config=cfg,
+            url=d.get("url"),
+            attachments=attachments,
+            raw=d,
+        )
+
+
+# ---- Auth models ----
+
+@dataclass
+class SmtpConfig:
+    """SMTP credentials for magic-link email delivery.
+
+    Write-only at the API boundary: accepted on enable, stored in the platform
+    secret store, and never returned in any response.
+    """
+
+    host: str
+    port: int
+    username: str
+    password: str
+    from_address: str
+    from_name: Optional[str] = None
+    insecure_skip_verify: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        body: Dict[str, Any] = {
+            "host": self.host,
+            "port": self.port,
+            "username": self.username,
+            "password": self.password,
+            "from_address": self.from_address,
+        }
+        if self.from_name is not None:
+            body["from_name"] = self.from_name
+        if self.insecure_skip_verify:
+            body["insecure_skip_verify"] = self.insecure_skip_verify
+        return body
+
+
+@dataclass
+class AuthTheme:
+    """Non-PII branding applied to the hosted login pages."""
+
+    display_name: Optional[str] = None
+    brand_color: Optional[str] = None
+    logo_url: Optional[str] = None
+    support_url: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AuthTheme":
+        return cls(
+            display_name=d.get("display_name"),
+            brand_color=d.get("brand_color"),
+            logo_url=d.get("logo_url"),
+            support_url=d.get("support_url"),
+            raw=d,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        body: Dict[str, Any] = {}
+        if self.display_name is not None:
+            body["display_name"] = self.display_name
+        if self.brand_color is not None:
+            body["brand_color"] = self.brand_color
+        if self.logo_url is not None:
+            body["logo_url"] = self.logo_url
+        if self.support_url is not None:
+            body["support_url"] = self.support_url
+        return body
+
+
+@dataclass
+class IdpProviderRequest:
+    """One social-login provider supplied at enable time.
+
+    The ``client_secret`` is write-only: stored in the platform secret store
+    and never returned in any response.
+    """
+
+    provider: str
+    client_id: str
+    client_secret: str
+    display_name: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        body: Dict[str, Any] = {
+            "provider": self.provider,
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+        }
+        if self.display_name is not None:
+            body["display_name"] = self.display_name
+        return body
+
+
+@dataclass
+class IdpProviderConfig:
+    """Stored, non-secret configuration of one social-login provider.
+
+    Returned as part of ``AuthConfiguration``. The ``client_secret`` is never
+    returned; it is custodied in the platform secret store.
+    """
+
+    provider: str
+    client_id: str
+    display_name: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "IdpProviderConfig":
+        return cls(
+            provider=d.get("provider", ""),
+            client_id=d.get("client_id", ""),
+            display_name=d.get("display_name"),
+            raw=d,
+        )
+
+
+@dataclass
+class AuthEnableRequest:
+    """Parameters for enabling end-user authentication on an app service.
+
+    ``attachment_id`` must reference a healthy PostgreSQL attachment of the app.
+    ``issuer_domain_choice`` is fixed at enable time: ``"fallback"`` uses a
+    platform subdomain; ``"custom"`` uses your own domain.
+    ``smtp`` is mandatory and write-only. ``idp_providers`` optionally enables
+    social login (Google and GitHub).
+    """
+
+    attachment_id: str
+    issuer_domain_choice: str
+    smtp: SmtpConfig
+    theme: Optional[AuthTheme] = None
+    idp_providers: Optional[List[IdpProviderRequest]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        body: Dict[str, Any] = {
+            "attachment_id": self.attachment_id,
+            "issuer_domain_choice": self.issuer_domain_choice,
+            "smtp": self.smtp.to_dict(),
+        }
+        if self.theme is not None:
+            body["theme"] = self.theme.to_dict()
+        if self.idp_providers:
+            body["idp_providers"] = [p.to_dict() for p in self.idp_providers]
+        return body
+
+
+@dataclass
+class AuthConfiguration:
+    """Auth enablement record for an app service.
+
+    Holds enablement state only. The end-user identity data lives in the
+    customer's own PostgreSQL database. Secret custody locations are never
+    serialized.
+    """
+
+    id: str
+    app_service_id: str
+    database_service_id: str
+    attachment_id: str
+    issuer_url: str
+    fallback_domain: str
+    status: str
+    theme: Optional[AuthTheme] = None
+    idp_providers: List[IdpProviderConfig] = field(default_factory=list)
+    user_id: Optional[str] = None
+    organization_id: Optional[str] = None
+    custom_domain: Optional[str] = None
+    schema_version_applied: Optional[str] = None
+    failure_reason: Optional[str] = None
+    auth_app_service_id: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AuthConfiguration":
+        theme_raw = d.get("theme")
+        theme = AuthTheme.from_dict(theme_raw) if theme_raw else None
+        idp_providers = [IdpProviderConfig.from_dict(p) for p in d.get("idp_providers", [])]
+        return cls(
+            id=d.get("id", ""),
+            app_service_id=d.get("app_service_id", ""),
+            database_service_id=d.get("database_service_id", ""),
+            attachment_id=d.get("attachment_id", ""),
+            issuer_url=d.get("issuer_url", ""),
+            fallback_domain=d.get("fallback_domain", ""),
+            status=d.get("status", ""),
+            theme=theme,
+            idp_providers=idp_providers,
+            user_id=d.get("user_id"),
+            organization_id=d.get("organization_id"),
+            custom_domain=d.get("custom_domain"),
+            schema_version_applied=d.get("schema_version_applied"),
+            failure_reason=d.get("failure_reason"),
+            auth_app_service_id=d.get("auth_app_service_id"),
+            created_at=d.get("created_at"),
+            updated_at=d.get("updated_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class AuthSigningKey:
+    """Controller-side record of one JWT signing keypair.
+
+    Key material is held in the platform secret store and never returned.
+    Only the key id, algorithm, and lifecycle status are exposed.
+    """
+
+    id: str
+    auth_configuration_id: str
+    kid: str
+    algorithm: str
+    status: str
+    activated_at: Optional[str] = None
+    retired_at: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AuthSigningKey":
+        return cls(
+            id=d.get("id", ""),
+            auth_configuration_id=d.get("auth_configuration_id", ""),
+            kid=d.get("kid", ""),
+            algorithm=d.get("algorithm", ""),
+            status=d.get("status", ""),
+            activated_at=d.get("activated_at"),
+            retired_at=d.get("retired_at"),
+            created_at=d.get("created_at"),
+            updated_at=d.get("updated_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class AuthConfigurationWithKeys:
+    """Auth configuration and its signing key records."""
+
+    auth: Optional[AuthConfiguration]
+    signing_keys: List[AuthSigningKey] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AuthConfigurationWithKeys":
+        auth_raw = d.get("auth")
+        auth = AuthConfiguration.from_dict(auth_raw) if auth_raw else None
+        signing_keys = [AuthSigningKey.from_dict(k) for k in d.get("signing_keys", [])]
+        return cls(auth=auth, signing_keys=signing_keys, raw=d)
+
+
 # ---- Error types ----
 
 class FoundryDBError(Exception):
