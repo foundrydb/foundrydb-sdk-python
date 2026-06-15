@@ -5,7 +5,13 @@ Official Python SDK for the [FoundryDB](https://foundrydb.com) managed database 
 ## Installation
 
 ```bash
-pip install foundrydb
+pip install foundrydb-sdk
+```
+
+The distribution is published as `foundrydb-sdk`; the import package is `foundrydb`:
+
+```python
+import foundrydb
 ```
 
 ## Requirements
