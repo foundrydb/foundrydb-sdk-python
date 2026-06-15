@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "foundrydb"
-version = "0.2.0"
+version = "0.4.0"
 description = "Python SDK for the FoundryDB managed database platform"
 readme = "README.md"
 license = { text = "MIT" }
@@ -42,3 +42,6 @@ Repository = "https://github.com/anorph/foundrydb-sdk-python"
 
 [tool.hatch.build.targets.wheel]
 packages = ["foundrydb"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

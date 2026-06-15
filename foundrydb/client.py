@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from .monitoring import MonitoringAPI, AsyncMonitoringAPI
     from .organizations import OrganizationsAPI, AsyncOrganizationsAPI
     from .app_services import AppServicesAPI, AsyncAppServicesAPI
+    from .edge import EdgeAPI, AsyncEdgeAPI
 
 
 def _build_auth_header(username: str, password: str) -> str:
@@ -91,6 +92,11 @@ class HTTPClient:
         _raise_for_status(resp)
         return resp.json() if resp.content else None
 
+    def put(self, path: str, body: Any) -> Any:
+        resp = self._client.put(path, content=json.dumps(body))
+        _raise_for_status(resp)
+        return resp.json() if resp.content else None
+
     def delete(self, path: str) -> None:
         resp = self._client.delete(path)
         _raise_for_status(resp)
@@ -157,6 +163,11 @@ class AsyncHTTPClient:
         _raise_for_status(resp)
         return resp.json() if resp.content else None
 
+    async def put(self, path: str, body: Any) -> Any:
+        resp = await self._client.put(path, content=json.dumps(body))
+        _raise_for_status(resp)
+        return resp.json() if resp.content else None
+
     async def delete(self, path: str) -> None:
         resp = await self._client.delete(path)
         _raise_for_status(resp)
@@ -210,6 +221,7 @@ class FoundryDB:
         from .monitoring import MonitoringAPI
         from .organizations import OrganizationsAPI
         from .app_services import AppServicesAPI
+        from .edge import EdgeAPI
 
         http = HTTPClient(api_url, username, password, timeout, organization_id=organization_id)
         self.services: ServicesAPI = ServicesAPI(http)
@@ -218,6 +230,7 @@ class FoundryDB:
         self.monitoring: MonitoringAPI = MonitoringAPI(http)
         self.organizations: OrganizationsAPI = OrganizationsAPI(http)
         self.app_services: AppServicesAPI = AppServicesAPI(http)
+        self.edge: EdgeAPI = EdgeAPI(http)
 
     def close(self) -> None:
         self.services._http.close()  # type: ignore[attr-defined]
@@ -273,6 +286,7 @@ class AsyncFoundryDB:
         from .monitoring import AsyncMonitoringAPI
         from .organizations import AsyncOrganizationsAPI
         from .app_services import AsyncAppServicesAPI
+        from .edge import AsyncEdgeAPI
 
         http = AsyncHTTPClient(api_url, username, password, timeout, organization_id=organization_id)
         self.services: AsyncServicesAPI = AsyncServicesAPI(http)
@@ -281,6 +295,7 @@ class AsyncFoundryDB:
         self.monitoring: AsyncMonitoringAPI = AsyncMonitoringAPI(http)
         self.organizations: AsyncOrganizationsAPI = AsyncOrganizationsAPI(http)
         self.app_services: AsyncAppServicesAPI = AsyncAppServicesAPI(http)
+        self.edge: AsyncEdgeAPI = AsyncEdgeAPI(http)
 
     async def aclose(self) -> None:
         await self.services._http.aclose()  # type: ignore[attr-defined]

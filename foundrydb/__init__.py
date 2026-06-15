@@ -58,6 +58,15 @@ from .types import (
     AuthConfiguration,
     AuthSigningKey,
     AuthConfigurationWithKeys,
+    EdgeDomain,
+    EdgeDomainStatus,
+    EdgeCacheRule,
+    EdgeRateLimit,
+    EdgeRateLimitKey,
+    EdgeWAFMode,
+    EdgeAppApplication,
+    EdgeStatus,
+    EdgeSettings,
 )
 from .services import ServicesAPI, AsyncServicesAPI
 from .users import UsersAPI, AsyncUsersAPI
@@ -65,8 +74,9 @@ from .backups import BackupsAPI, AsyncBackupsAPI
 from .monitoring import MonitoringAPI, AsyncMonitoringAPI
 from .organizations import OrganizationsAPI, AsyncOrganizationsAPI
 from .app_services import AppServicesAPI, AsyncAppServicesAPI
+from .edge import EdgeAPI, AsyncEdgeAPI
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = [
     "FoundryDB",
     "AsyncFoundryDB",
@@ -95,6 +105,15 @@ __all__ = [
     "AuthConfiguration",
     "AuthSigningKey",
     "AuthConfigurationWithKeys",
+    "EdgeDomain",
+    "EdgeDomainStatus",
+    "EdgeCacheRule",
+    "EdgeRateLimit",
+    "EdgeRateLimitKey",
+    "EdgeWAFMode",
+    "EdgeAppApplication",
+    "EdgeStatus",
+    "EdgeSettings",
     "ServicesAPI",
     "AsyncServicesAPI",
     "UsersAPI",
@@ -107,4 +126,6 @@ __all__ = [
     "AsyncOrganizationsAPI",
     "AppServicesAPI",
     "AsyncAppServicesAPI",
+    "EdgeAPI",
+    "AsyncEdgeAPI",
 ]

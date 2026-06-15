@@ -221,6 +221,65 @@ logs = client.monitoring.fetch_logs(service_id, lines=500)
 print(logs)
 ```
 
+### Edge Gateway
+
+The edge gateway sits in front of app services and provides custom domains with automated TLS, path-based caching, a token-bucket rate limiter, and a WAF. All methods are on `client.edge`:
+
+```python
+from foundrydb import EdgeCacheRule, EdgeRateLimit
+
+# Add a custom domain (starts in pending_verification; platform verifies CNAME and issues TLS)
+domain = client.edge.create_domain(app.id, "shop.acme.com")
+print(domain.cname_target)   # "edge.foundrydb.com" -- point your CNAME here
+
+# Trigger an immediate verification pass instead of waiting for the background worker
+domain = client.edge.verify_domain(app.id, domain.id)
+
+# List all domains attached to the app
+domains = client.edge.list_domains(app.id)
+for d in domains:
+    print(d.domain, d.status)
+
+# Remove a domain (idempotent: 404 is treated as success)
+client.edge.delete_domain(app.id, domain.id)
+
+# Inspect the edge overview: enabled flag, home PoP, CNAME target, per-PoP convergence
+status = client.edge.get_status(app.id)
+print(status.edge_enabled, status.home_pop, status.config_version)
+for pop in status.applications:
+    print(pop.zone, pop.status, pop.applied_version)
+
+# Update customer-tunable edge settings (cache rules, rate limit, WAF mode)
+settings = client.edge.update_settings(
+    app.id,
+    cache_rules=[EdgeCacheRule(path_prefix="/static/", ttl_seconds=86400)],
+    rate_limit=EdgeRateLimit(requests_per_second=100, burst=200, key="ip"),
+    waf_mode="detect",
+)
+print(settings.config_version)   # version the fleet will converge on
+```
+
+#### `update_settings()` parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `cache_rules` | `list[EdgeCacheRule]` or `None` | Path-prefix cache rules. Pass `[]` to clear. |
+| `rate_limit` | `EdgeRateLimit` or `None` | Token-bucket rate limit. |
+| `waf_mode` | `str` or `None` | `"off"` or `"detect"`. |
+
+#### Edge models
+
+| Model | Fields |
+|-------|--------|
+| `EdgeDomain` | `id`, `service_id`, `user_id`, `domain`, `status`, `cname_target`, `certificate_id`, `verification_checked_at`, `error_message`, `created_at`, `updated_at` |
+| `EdgeStatus` | `edge_enabled`, `home_pop`, `cname_target`, `config_version`, `applications` |
+| `EdgeAppApplication` | `zone`, `applied_version`, `status`, `error_message` |
+| `EdgeSettings` | `waf_mode`, `config_version`, `cache_rules`, `rate_limit` |
+| `EdgeCacheRule` | `path_prefix`, `ttl_seconds` |
+| `EdgeRateLimit` | `requests_per_second`, `burst`, `key` |
+
+`EdgeDomainStatus` values: `pending_verification`, `verifying`, `issuing_certificate`, `propagating`, `active`, `failed`, `deleting`.
+
 ## Async Client
 
 All methods have async equivalents. Use `AsyncFoundryDB` as an async context manager:

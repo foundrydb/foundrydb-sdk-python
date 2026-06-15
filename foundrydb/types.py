@@ -733,6 +733,178 @@ class AuthConfigurationWithKeys:
         return cls(auth=auth, signing_keys=signing_keys, raw=d)
 
 
+# ---- Edge gateway models ----
+
+# Lifecycle of a customer custom domain on the edge tier.
+EdgeDomainStatus = Literal[
+    "pending_verification",
+    "verifying",
+    "issuing_certificate",
+    "propagating",
+    "active",
+    "failed",
+    "deleting",
+]
+
+# How the edge web application firewall treats matching requests.
+EdgeWAFMode = Literal["off", "detect"]
+
+# What an edge rate-limit bucket is keyed on.
+EdgeRateLimitKey = Literal["ip", "api_key"]
+
+
+@dataclass
+class EdgeDomain:
+    """A customer custom domain attached to an app service, served through
+    the edge tier. Created in pending_verification status; the platform
+    verifies DNS ownership and then provisions a TLS certificate."""
+
+    id: str
+    service_id: str
+    user_id: str
+    domain: str
+    status: EdgeDomainStatus
+    cname_target: str
+    created_at: str
+    updated_at: str
+    certificate_id: Optional[str] = None
+    verification_checked_at: Optional[str] = None
+    error_message: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeDomain":
+        return cls(
+            id=d.get("id", ""),
+            service_id=d.get("service_id", ""),
+            user_id=d.get("user_id", ""),
+            domain=d.get("domain", ""),
+            status=d.get("status", ""),
+            cname_target=d.get("cname_target", ""),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            certificate_id=d.get("certificate_id"),
+            verification_checked_at=d.get("verification_checked_at"),
+            error_message=d.get("error_message"),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeCacheRule:
+    """Caches responses under one path prefix for a fixed TTL."""
+
+    path_prefix: str
+    ttl_seconds: int
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"path_prefix": self.path_prefix, "ttl_seconds": self.ttl_seconds}
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeCacheRule":
+        return cls(
+            path_prefix=d.get("path_prefix", ""),
+            ttl_seconds=d.get("ttl_seconds", 0),
+        )
+
+
+@dataclass
+class EdgeRateLimit:
+    """Token bucket enforced per PoP at the edge."""
+
+    requests_per_second: int
+    burst: int
+    key: EdgeRateLimitKey
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "requests_per_second": self.requests_per_second,
+            "burst": self.burst,
+            "key": self.key,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeRateLimit":
+        return cls(
+            requests_per_second=d.get("requests_per_second", 0),
+            burst=d.get("burst", 0),
+            key=d.get("key", "ip"),
+        )
+
+
+@dataclass
+class EdgeAppApplication:
+    """One PoP's convergence state for an app service."""
+
+    zone: str
+    applied_version: int
+    status: str
+    error_message: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeAppApplication":
+        return cls(
+            zone=d.get("zone", ""),
+            applied_version=d.get("applied_version", 0),
+            status=d.get("status", ""),
+            error_message=d.get("error_message", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeStatus:
+    """Edge overview for an app service: whether the edge tier is enabled,
+    the home PoP, CNAME target, desired-state version, and per-PoP
+    convergence status."""
+
+    edge_enabled: bool
+    config_version: int
+    home_pop: str = ""
+    cname_target: str = ""
+    applications: List[EdgeAppApplication] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeStatus":
+        apps = [EdgeAppApplication.from_dict(a) for a in d.get("applications") or []]
+        return cls(
+            edge_enabled=d.get("edge_enabled", False),
+            config_version=d.get("config_version", 0),
+            home_pop=d.get("home_pop", ""),
+            cname_target=d.get("cname_target", ""),
+            applications=apps,
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeSettings:
+    """Customer-tunable edge settings echoed back after an update. Domains
+    and origin are platform-derived and are not included here."""
+
+    waf_mode: EdgeWAFMode
+    config_version: int
+    cache_rules: Optional[List[EdgeCacheRule]] = None
+    rate_limit: Optional[EdgeRateLimit] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeSettings":
+        rules_data = d.get("cache_rules")
+        rules = [EdgeCacheRule.from_dict(r) for r in rules_data] if rules_data else None
+        rl_data = d.get("rate_limit")
+        rate_limit = EdgeRateLimit.from_dict(rl_data) if rl_data else None
+        return cls(
+            waf_mode=d.get("waf_mode", "off"),
+            config_version=d.get("config_version", 0),
+            cache_rules=rules,
+            rate_limit=rate_limit,
+            raw=d,
+        )
+
+
 # ---- Error types ----
 
 class FoundryDBError(Exception):
