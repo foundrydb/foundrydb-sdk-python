@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from .client import HTTPClient, AsyncHTTPClient
 from .types import (
     AppContainerConfig,
+    AppDeployment,
     AppService,
     AuthConfigurationWithKeys,
     AuthEnableRequest,
@@ -103,7 +104,22 @@ class AppServicesAPI:
         return AppService.from_dict(data)
 
     def attach(self, app_service_id: str, *, attached_service_id: str) -> AppService:
-        """Attach a managed service to a running app."""
+        """Attach a managed service to a running app.
+
+        The target may be a database or another app (east-west app-to-app).
+        The platform peers the private networks, opens the target's port to the
+        app's subnet, and rolls a zero-downtime redeploy so the injected
+        environment is updated: a database injects connection credentials; an
+        app injects ``MDB_<NAME>_HOST/PORT/URL`` for plain-HTTP calls over the
+        private SDN (no credentials, no ``DATABASE_URL``). An app supports up
+        to five attachments (databases and apps combined). The target must be
+        Running, owned by the same user, in the app's peering region, and not
+        the app itself.
+
+        Args:
+            app_service_id: ID of the app service to attach to.
+            attached_service_id: ID of the database or app service to attach.
+        """
         body: Dict[str, Any] = {"attached_service_id": attached_service_id}
         data = self._http.post(f"/app-services/{app_service_id}/attachments", body)
         return AppService.from_dict(data)
@@ -113,6 +129,36 @@ class AppServicesAPI:
         data = self._http.delete(f"/app-services/{app_service_id}/attachments/{attachment_id}")  # type: ignore[assignment]
         if data is None:
             return self.get(app_service_id)
+        return AppService.from_dict(data)
+
+    # ------------------------------------------------------------------
+    # Deployment history
+    # ------------------------------------------------------------------
+
+    def list_deployments(self, app_service_id: str) -> List[AppDeployment]:
+        """List the deploy history of an app service, newest first.
+
+        Each entry is a previously rolled-out image and configuration.
+        ``deploy_logs`` on each entry holds the ordered steps the agent
+        executed for that revision (image start, health probe, ingress
+        cutover, previous-color teardown).
+
+        Args:
+            app_service_id: ID of the app service.
+        """
+        data = self._http.get(f"/app-services/{app_service_id}/deployments")
+        return [AppDeployment.from_dict(d) for d in data.get("deployments", [])]
+
+    def rollback(self, app_service_id: str, *, deployment_id: str) -> AppService:
+        """Redeploy an earlier revision via a zero-downtime blue/green swap.
+
+        Args:
+            app_service_id: ID of the app service.
+            deployment_id: ID of the deployment to roll back to (from
+                ``list_deployments``).
+        """
+        body: Dict[str, Any] = {"deployment_id": deployment_id}
+        data = self._http.post(f"/app-services/{app_service_id}/rollback", body)
         return AppService.from_dict(data)
 
     # ------------------------------------------------------------------
@@ -298,7 +344,22 @@ class AsyncAppServicesAPI:
         return AppService.from_dict(data)
 
     async def attach(self, app_service_id: str, *, attached_service_id: str) -> AppService:
-        """Attach a managed service to a running app."""
+        """Attach a managed service to a running app.
+
+        The target may be a database or another app (east-west app-to-app).
+        The platform peers the private networks, opens the target's port to the
+        app's subnet, and rolls a zero-downtime redeploy so the injected
+        environment is updated: a database injects connection credentials; an
+        app injects ``MDB_<NAME>_HOST/PORT/URL`` for plain-HTTP calls over the
+        private SDN (no credentials, no ``DATABASE_URL``). An app supports up
+        to five attachments (databases and apps combined). The target must be
+        Running, owned by the same user, in the app's peering region, and not
+        the app itself.
+
+        Args:
+            app_service_id: ID of the app service to attach to.
+            attached_service_id: ID of the database or app service to attach.
+        """
         body: Dict[str, Any] = {"attached_service_id": attached_service_id}
         data = await self._http.post(f"/app-services/{app_service_id}/attachments", body)
         return AppService.from_dict(data)
@@ -308,6 +369,36 @@ class AsyncAppServicesAPI:
         data = await self._http.delete(f"/app-services/{app_service_id}/attachments/{attachment_id}")  # type: ignore[assignment]
         if data is None:
             return await self.get(app_service_id)
+        return AppService.from_dict(data)
+
+    # ------------------------------------------------------------------
+    # Deployment history
+    # ------------------------------------------------------------------
+
+    async def list_deployments(self, app_service_id: str) -> List[AppDeployment]:
+        """List the deploy history of an app service, newest first.
+
+        Each entry is a previously rolled-out image and configuration.
+        ``deploy_logs`` on each entry holds the ordered steps the agent
+        executed for that revision (image start, health probe, ingress
+        cutover, previous-color teardown).
+
+        Args:
+            app_service_id: ID of the app service.
+        """
+        data = await self._http.get(f"/app-services/{app_service_id}/deployments")
+        return [AppDeployment.from_dict(d) for d in data.get("deployments", [])]
+
+    async def rollback(self, app_service_id: str, *, deployment_id: str) -> AppService:
+        """Redeploy an earlier revision via a zero-downtime blue/green swap.
+
+        Args:
+            app_service_id: ID of the app service.
+            deployment_id: ID of the deployment to roll back to (from
+                ``list_deployments``).
+        """
+        body: Dict[str, Any] = {"deployment_id": deployment_id}
+        data = await self._http.post(f"/app-services/{app_service_id}/rollback", body)
         return AppService.from_dict(data)
 
     # ------------------------------------------------------------------

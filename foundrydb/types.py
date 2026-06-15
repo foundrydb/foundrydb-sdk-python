@@ -484,6 +484,77 @@ class AppService:
         )
 
 
+@dataclass
+class AppDeployStep:
+    """One phase of an app deploy or redeploy, captured on the agent.
+
+    ``status`` is one of ``"ok"``, ``"failed"``, or ``"info"``.
+    ``duration_ms`` is omitted when the step has not yet completed.
+    """
+
+    step: str
+    status: str
+    started_at: str
+    message: Optional[str] = None
+    detail: Optional[str] = None
+    duration_ms: Optional[int] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AppDeployStep":
+        return cls(
+            step=d.get("step", ""),
+            status=d.get("status", ""),
+            started_at=d.get("started_at", ""),
+            message=d.get("message"),
+            detail=d.get("detail"),
+            duration_ms=d.get("duration_ms"),
+            raw=d,
+        )
+
+
+@dataclass
+class AppDeployment:
+    """A single revision in an app service's deploy history.
+
+    The newest entry reflects the currently serving container. Pass an older
+    entry's ``id`` to ``rollback`` to redeploy it.
+    ``deploy_logs`` is the ordered list of deploy steps the agent executed for
+    this revision (image start, health probe, ingress cutover, previous-color
+    teardown). It is distinct from runtime container logs and is empty for
+    revisions deployed before the platform captured deploy steps.
+    """
+
+    id: str
+    service_id: str
+    image_ref: str
+    container_port: int
+    created_at: str
+    env: Optional[Dict[str, str]] = None
+    custom_domains: Optional[List[str]] = None
+    registry_username: Optional[str] = None
+    reason: Optional[str] = None
+    deploy_logs: List[AppDeployStep] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AppDeployment":
+        logs = [AppDeployStep.from_dict(s) for s in d.get("deploy_logs", [])]
+        return cls(
+            id=d.get("id", ""),
+            service_id=d.get("service_id", ""),
+            image_ref=d.get("image_ref", ""),
+            container_port=d.get("container_port", 0),
+            created_at=d.get("created_at", ""),
+            env=d.get("env"),
+            custom_domains=d.get("custom_domains"),
+            registry_username=d.get("registry_username"),
+            reason=d.get("reason"),
+            deploy_logs=logs,
+            raw=d,
+        )
+
+
 # ---- Auth models ----
 
 @dataclass
