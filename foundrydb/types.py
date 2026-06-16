@@ -976,6 +976,1313 @@ class EdgeSettings:
         )
 
 
+# ---- App jobs models ----
+
+@dataclass
+class AppJob:
+    """A job definition on an app service: a container run with an optional
+    cron schedule. A ``None`` schedule_cron means the job only runs when
+    invoked explicitly via run()."""
+
+    id: str
+    service_id: str
+    name: str
+    timezone: str
+    enabled: bool
+    max_retries: int
+    retry_backoff_seconds: int
+    max_runtime_seconds: int
+    concurrency_cap: int
+    overlap_policy: str
+    created_at: str
+    updated_at: str
+    schedule_cron: Optional[str] = None
+    image_ref: Optional[str] = None
+    command: Optional[List[str]] = None
+    env: Optional[Dict[str, str]] = None
+    next_run_at: Optional[str] = None
+    last_run_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AppJob":
+        return cls(
+            id=d.get("id", ""),
+            service_id=d.get("service_id", ""),
+            name=d.get("name", ""),
+            timezone=d.get("timezone", "UTC"),
+            enabled=d.get("enabled", True),
+            max_retries=d.get("max_retries", 0),
+            retry_backoff_seconds=d.get("retry_backoff_seconds", 0),
+            max_runtime_seconds=d.get("max_runtime_seconds", 3600),
+            concurrency_cap=d.get("concurrency_cap", 1),
+            overlap_policy=d.get("overlap_policy", ""),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            schedule_cron=d.get("schedule_cron"),
+            image_ref=d.get("image_ref"),
+            command=d.get("command"),
+            env=d.get("env"),
+            next_run_at=d.get("next_run_at"),
+            last_run_at=d.get("last_run_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class AppJobInvocation:
+    """One execution (or recorded skip) of an app job.
+
+    ``status`` is one of queued, running, succeeded, failed, timed_out, or
+    skipped.
+    """
+
+    id: str
+    job_id: str
+    service_id: str
+    status: str
+    attempt: int
+    triggered_by: str
+    queued_at: str
+    created_at: str
+    updated_at: str
+    triggered_by_user_id: Optional[str] = None
+    agent_task_id: Optional[str] = None
+    unit_name: Optional[str] = None
+    scheduled_for: Optional[str] = None
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    duration_ms: Optional[int] = None
+    exit_code: Optional[int] = None
+    error_message: Optional[str] = None
+    log_tail: Optional[str] = None
+    retry_enqueued: bool = False
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AppJobInvocation":
+        return cls(
+            id=d.get("id", ""),
+            job_id=d.get("job_id", ""),
+            service_id=d.get("service_id", ""),
+            status=d.get("status", ""),
+            attempt=d.get("attempt", 0),
+            triggered_by=d.get("triggered_by", ""),
+            queued_at=d.get("queued_at", ""),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            triggered_by_user_id=d.get("triggered_by_user_id"),
+            agent_task_id=d.get("agent_task_id"),
+            unit_name=d.get("unit_name"),
+            scheduled_for=d.get("scheduled_for"),
+            started_at=d.get("started_at"),
+            finished_at=d.get("finished_at"),
+            duration_ms=d.get("duration_ms"),
+            exit_code=d.get("exit_code"),
+            error_message=d.get("error_message"),
+            log_tail=d.get("log_tail"),
+            retry_enqueued=d.get("retry_enqueued", False),
+            raw=d,
+        )
+
+
+@dataclass
+class AppJobLogLines:
+    """Log payload inside a completed invocation logs fetch."""
+
+    lines: List[str]
+    log_file_path: str
+    truncated_at: Optional[int] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AppJobLogLines":
+        return cls(
+            lines=d.get("lines", []),
+            log_file_path=d.get("log_file_path", ""),
+            truncated_at=d.get("truncated_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class AppJobInvocationLogs:
+    """Poll response for an invocation logs fetch task.
+
+    ``status`` mirrors the agent task lifecycle (PENDING, DISPATCHED,
+    IN_PROGRESS, COMPLETED, FAILED, TIMEOUT, CANCELLED). ``result`` is set
+    once COMPLETED.
+    """
+
+    task_id: str
+    status: str
+    result: Optional[AppJobLogLines] = None
+    error_message: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AppJobInvocationLogs":
+        result_raw = d.get("result")
+        return cls(
+            task_id=d.get("task_id", ""),
+            status=d.get("status", ""),
+            result=AppJobLogLines.from_dict(result_raw) if result_raw else None,
+            error_message=d.get("error_message", ""),
+            raw=d,
+        )
+
+
+# ---- Queue models ----
+
+@dataclass
+class Queue:
+    """A named message queue hosted on a PostgreSQL managed service.
+
+    Status is one of Pending, Provisioning, Active, Deprovisioning, or
+    Failed. Brokered data-plane operations require Active status.
+    """
+
+    id: str
+    service_id: str
+    name: str
+    database_name: str
+    visibility_timeout_seconds: int
+    max_attempts: int
+    dlq_enabled: bool
+    status: str
+    created_at: str
+    updated_at: str
+    user_id: str = ""
+    organization_id: Optional[str] = None
+    error_message: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Queue":
+        return cls(
+            id=d.get("id", ""),
+            service_id=d.get("service_id", ""),
+            name=d.get("name", ""),
+            database_name=d.get("database_name", ""),
+            visibility_timeout_seconds=d.get("visibility_timeout_seconds", 30),
+            max_attempts=d.get("max_attempts", 5),
+            dlq_enabled=d.get("dlq_enabled", True),
+            status=d.get("status", ""),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            user_id=d.get("user_id", ""),
+            organization_id=d.get("organization_id"),
+            error_message=d.get("error_message"),
+            raw=d,
+        )
+
+
+@dataclass
+class QueueEnqueueMessageIDs:
+    """Assigned message IDs from a completed enqueue task, in request order."""
+
+    message_ids: List[int]
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "QueueEnqueueMessageIDs":
+        return cls(message_ids=d.get("message_ids", []), raw=d)
+
+
+@dataclass
+class QueueEnqueueResult:
+    """Poll response for an enqueue task.
+
+    ``status`` mirrors the agent task lifecycle. ``result`` is set once
+    COMPLETED.
+    """
+
+    task_id: str
+    status: str
+    result: Optional[QueueEnqueueMessageIDs] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "QueueEnqueueResult":
+        result_raw = d.get("result")
+        return cls(
+            task_id=d.get("task_id", ""),
+            status=d.get("status", ""),
+            result=QueueEnqueueMessageIDs.from_dict(result_raw) if result_raw else None,
+            raw=d,
+        )
+
+
+@dataclass
+class QueueStats:
+    """Per-queue depth snapshot."""
+
+    queue_name: str
+    ready_messages: int
+    inflight_messages: int
+    dead_messages: int
+    oldest_age_seconds: float
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "QueueStats":
+        return cls(
+            queue_name=d.get("queue_name", ""),
+            ready_messages=d.get("ready_messages", 0),
+            inflight_messages=d.get("inflight_messages", 0),
+            dead_messages=d.get("dead_messages", 0),
+            oldest_age_seconds=d.get("oldest_age_seconds", 0.0),
+            raw=d,
+        )
+
+
+@dataclass
+class QueueStatsResult:
+    """Poll response for a queue stats task."""
+
+    task_id: str
+    status: str
+    result: Optional[QueueStats] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "QueueStatsResult":
+        result_raw = d.get("result")
+        return cls(
+            task_id=d.get("task_id", ""),
+            status=d.get("status", ""),
+            result=QueueStats.from_dict(result_raw) if result_raw else None,
+            raw=d,
+        )
+
+
+# ---- File service models ----
+
+@dataclass
+class FilesBucket:
+    """One bucket backing a files service."""
+
+    region: str
+    bucket: str
+    endpoint: str
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "FilesBucket":
+        return cls(
+            region=d.get("region", ""),
+            bucket=d.get("bucket", ""),
+            endpoint=d.get("endpoint", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class FilesConfig:
+    """Per-service configuration of a files service."""
+
+    buckets: List[FilesBucket]
+    quota_gb_soft: int
+    quota_gb_hard: int
+    versioning: bool
+    sse: bool
+    lifecycle_enabled: bool
+    measured_bytes: int
+    over_quota: bool
+    measured_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "FilesConfig":
+        return cls(
+            buckets=[FilesBucket.from_dict(b) for b in d.get("buckets", [])],
+            quota_gb_soft=d.get("quota_gb_soft", 0),
+            quota_gb_hard=d.get("quota_gb_hard", 0),
+            versioning=d.get("versioning", False),
+            sse=d.get("sse", False),
+            lifecycle_enabled=d.get("lifecycle_enabled", False),
+            measured_bytes=d.get("measured_bytes", 0),
+            over_quota=d.get("over_quota", False),
+            measured_at=d.get("measured_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class FilesService:
+    """A managed S3-compatible bucket service."""
+
+    id: str
+    name: str
+    service_kind: str
+    status: str
+    zone: str
+    created_at: str
+    updated_at: str
+    user_id: str = ""
+    organization_id: Optional[str] = None
+    files_config: Optional[FilesConfig] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "FilesService":
+        cfg_raw = d.get("files_config")
+        return cls(
+            id=d.get("id", ""),
+            name=d.get("name", ""),
+            service_kind=d.get("service_kind", "files"),
+            status=d.get("status", ""),
+            zone=d.get("zone", ""),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            user_id=d.get("user_id", ""),
+            organization_id=d.get("organization_id"),
+            files_config=FilesConfig.from_dict(cfg_raw) if cfg_raw else None,
+            raw=d,
+        )
+
+
+@dataclass
+class FilesAccessKey:
+    """One scoped S3 credential for a files service.
+
+    Only the public half (access_key_id) is returned in list and get
+    operations. The secret is returned exactly once at creation time.
+    """
+
+    id: str
+    service_id: str
+    name: str
+    access_key_id: str
+    prefix: str
+    permissions: str
+    purpose: str
+    status: str
+    created_at: str
+    updated_at: str
+    user_id: str = ""
+    organization_id: Optional[str] = None
+    last_used_at: Optional[str] = None
+    revoked_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "FilesAccessKey":
+        return cls(
+            id=d.get("id", ""),
+            service_id=d.get("service_id", ""),
+            name=d.get("name", ""),
+            access_key_id=d.get("access_key_id", ""),
+            prefix=d.get("prefix", ""),
+            permissions=d.get("permissions", "readwrite"),
+            purpose=d.get("purpose", "user"),
+            status=d.get("status", "active"),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            user_id=d.get("user_id", ""),
+            organization_id=d.get("organization_id"),
+            last_used_at=d.get("last_used_at"),
+            revoked_at=d.get("revoked_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class FilesAccessKeyWithSecret:
+    """CreateFilesAccessKey response. The secret is returned exactly once."""
+
+    key: FilesAccessKey
+    secret_access_key: str
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "FilesAccessKeyWithSecret":
+        return cls(
+            key=FilesAccessKey.from_dict(d),
+            secret_access_key=d.get("secret_access_key", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class FilesPresignedURL:
+    """A presigned S3 URL and its validity window."""
+
+    url: str
+    method: str
+    expires_at: str
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "FilesPresignedURL":
+        return cls(
+            url=d.get("url", ""),
+            method=d.get("method", ""),
+            expires_at=d.get("expires_at", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class FilesObject:
+    """One object in a bucket listing."""
+
+    key: str
+    size: int
+    last_modified: str
+    etag: str
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "FilesObject":
+        return cls(
+            key=d.get("key", ""),
+            size=d.get("size", 0),
+            last_modified=d.get("last_modified", ""),
+            etag=d.get("etag", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class FilesObjectPage:
+    """One page of a bucket listing. ``next_cursor`` is non-empty when more
+    objects follow; pass it as the cursor of the next call."""
+
+    objects: List[FilesObject]
+    next_cursor: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "FilesObjectPage":
+        return cls(
+            objects=[FilesObject.from_dict(o) for o in d.get("objects", [])],
+            next_cursor=d.get("next_cursor", ""),
+            raw=d,
+        )
+
+
+# ---- Inference models ----
+
+@dataclass
+class InferenceProviderConfig:
+    """API view of one configured AI provider for an organization.
+
+    The provider API key is never returned; ``has_api_key`` only indicates
+    its presence.
+    """
+
+    id: str
+    provider: str
+    eu_endpoint: bool
+    enabled: bool
+    has_api_key: bool
+    eu_resident: bool
+    created_at: str
+    updated_at: str
+    base_url: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "InferenceProviderConfig":
+        return cls(
+            id=d.get("id", ""),
+            provider=d.get("provider", ""),
+            eu_endpoint=d.get("eu_endpoint", False),
+            enabled=d.get("enabled", True),
+            has_api_key=d.get("has_api_key", False),
+            eu_resident=d.get("eu_resident", False),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            base_url=d.get("base_url"),
+            raw=d,
+        )
+
+
+@dataclass
+class InferenceKey:
+    """API view of a data-plane inference key.
+
+    The secret is never returned after creation. ``key_prefix`` identifies
+    the key in customer code.
+    """
+
+    id: str
+    name: str
+    key_prefix: str
+    monthly_token_limit: int
+    rate_limit_rpm: int
+    status: str
+    tokens_used_cycle: int
+    cycle_month: str
+    created_at: str
+    revoked_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "InferenceKey":
+        return cls(
+            id=d.get("id", ""),
+            name=d.get("name", ""),
+            key_prefix=d.get("key_prefix", ""),
+            monthly_token_limit=d.get("monthly_token_limit", 0),
+            rate_limit_rpm=d.get("rate_limit_rpm", 0),
+            status=d.get("status", ""),
+            tokens_used_cycle=d.get("tokens_used_cycle", 0),
+            cycle_month=d.get("cycle_month", ""),
+            created_at=d.get("created_at", ""),
+            revoked_at=d.get("revoked_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class CreateInferenceKeyResult:
+    """Response from creating an inference key. The secret is shown exactly
+    once; store it immediately."""
+
+    key: InferenceKey
+    secret: str
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CreateInferenceKeyResult":
+        key_raw = d.get("key", d)
+        return cls(
+            key=InferenceKey.from_dict(key_raw),
+            secret=d.get("secret", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class OrgInferenceSettings:
+    """Org-wide inference proxy policy: EU-only routing and cost circuit
+    breaker."""
+
+    organization_id: str
+    eu_only: bool
+    monthly_cost_limit_cents: int
+    circuit_open: bool
+    updated_at: str
+    circuit_opened_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "OrgInferenceSettings":
+        return cls(
+            organization_id=d.get("organization_id", ""),
+            eu_only=d.get("eu_only", False),
+            monthly_cost_limit_cents=d.get("monthly_cost_limit_cents", 0),
+            circuit_open=d.get("circuit_open", False),
+            updated_at=d.get("updated_at", ""),
+            circuit_opened_at=d.get("circuit_opened_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class InferenceUsageRow:
+    """One aggregated usage row. ``group_key`` is the model name or key id
+    depending on the requested grouping."""
+
+    group_key: str
+    provider: str
+    calls: int
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    cost_microcents: int
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "InferenceUsageRow":
+        return cls(
+            group_key=d.get("group_key", ""),
+            provider=d.get("provider", ""),
+            calls=d.get("calls", 0),
+            input_tokens=d.get("input_tokens", 0),
+            output_tokens=d.get("output_tokens", 0),
+            total_tokens=d.get("total_tokens", 0),
+            cost_microcents=d.get("cost_microcents", 0),
+            raw=d,
+        )
+
+
+@dataclass
+class InferenceUsageSummary:
+    """Aggregated inference usage for an organization."""
+
+    from_: str
+    to: str
+    group_by: str
+    rows: List[InferenceUsageRow]
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "InferenceUsageSummary":
+        return cls(
+            from_=d.get("from", ""),
+            to=d.get("to", ""),
+            group_by=d.get("group_by", ""),
+            rows=[InferenceUsageRow.from_dict(r) for r in d.get("rows", [])],
+            raw=d,
+        )
+
+
+# ---- Webhook and event models ----
+
+@dataclass
+class WebhookEndpoint:
+    """A customer-configured HTTP endpoint that receives signed event
+    notifications. The signing secret is returned only on creation."""
+
+    id: str
+    url: str
+    events: List[str]
+    active: bool
+    consecutive_failures: int
+    total_delivered: int
+    total_failed: int
+    created_at: str
+    updated_at: str
+    secret: str = ""
+    last_success_at: Optional[str] = None
+    last_failure_at: Optional[str] = None
+    disabled_at: Optional[str] = None
+    disabled_reason: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "WebhookEndpoint":
+        return cls(
+            id=d.get("id", ""),
+            url=d.get("url", ""),
+            events=d.get("events", []),
+            active=d.get("active", True),
+            consecutive_failures=d.get("consecutive_failures", 0),
+            total_delivered=d.get("total_delivered", 0),
+            total_failed=d.get("total_failed", 0),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            secret=d.get("secret", ""),
+            last_success_at=d.get("last_success_at"),
+            last_failure_at=d.get("last_failure_at"),
+            disabled_at=d.get("disabled_at"),
+            disabled_reason=d.get("disabled_reason"),
+            raw=d,
+        )
+
+
+@dataclass
+class WebhookDelivery:
+    """One entry in a webhook endpoint's delivery history."""
+
+    id: str
+    webhook_id: str
+    event_type: str
+    status: str
+    attempt_count: int
+    created_at: str
+    updated_at: str
+    event_id: Optional[str] = None
+    next_retry_at: Optional[str] = None
+    response_status: Optional[int] = None
+    response_body: Optional[str] = None
+    delivered_at: Optional[str] = None
+    failed_at: Optional[str] = None
+    error_message: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "WebhookDelivery":
+        return cls(
+            id=d.get("id", ""),
+            webhook_id=d.get("webhook_id", ""),
+            event_type=d.get("event_type", ""),
+            status=d.get("status", ""),
+            attempt_count=d.get("attempt_count", 0),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            event_id=d.get("event_id"),
+            next_retry_at=d.get("next_retry_at"),
+            response_status=d.get("response_status"),
+            response_body=d.get("response_body"),
+            delivered_at=d.get("delivered_at"),
+            failed_at=d.get("failed_at"),
+            error_message=d.get("error_message"),
+            raw=d,
+        )
+
+
+@dataclass
+class Event:
+    """One entry in the queryable event stream."""
+
+    seq: int
+    id: str
+    event_type: str
+    data: Any
+    created_at: str
+    organization_id: Optional[str] = None
+    service_id: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Event":
+        return cls(
+            seq=d.get("seq", 0),
+            id=d.get("id", ""),
+            event_type=d.get("event_type", ""),
+            data=d.get("data"),
+            created_at=d.get("created_at", ""),
+            organization_id=d.get("organization_id"),
+            service_id=d.get("service_id"),
+            raw=d,
+        )
+
+
+@dataclass
+class EventPage:
+    """One page of the event feed."""
+
+    events: List[Event]
+    next_cursor: Optional[int] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EventPage":
+        return cls(
+            events=[Event.from_dict(e) for e in d.get("events", [])],
+            next_cursor=d.get("next_cursor"),
+            raw=d,
+        )
+
+
+# ---- Data pipeline models ----
+
+@dataclass
+class DataPipelineConfig:
+    """Optional configuration for a data pipeline."""
+
+    database_name: str = ""
+    tables: List[str] = field(default_factory=list)
+    topic_prefix: str = ""
+    snapshot_mode: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "DataPipelineConfig":
+        return cls(
+            database_name=d.get("database_name", ""),
+            tables=d.get("tables", []),
+            topic_prefix=d.get("topic_prefix", ""),
+            snapshot_mode=d.get("snapshot_mode", ""),
+            raw=d,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        body: Dict[str, Any] = {}
+        if self.database_name:
+            body["database_name"] = self.database_name
+        if self.tables:
+            body["tables"] = self.tables
+        if self.topic_prefix:
+            body["topic_prefix"] = self.topic_prefix
+        if self.snapshot_mode:
+            body["snapshot_mode"] = self.snapshot_mode
+        return body
+
+
+@dataclass
+class DataPipeline:
+    """A data flow between two managed services."""
+
+    id: str
+    organization_id: str
+    name: str
+    pipeline_type: str
+    source_service_id: str
+    sink_service_id: str
+    status: str
+    config: DataPipelineConfig
+    created_at: str
+    updated_at: str
+    provision_step: Optional[str] = None
+    connector_name: Optional[str] = None
+    publication_name: Optional[str] = None
+    slot_name: Optional[str] = None
+    topic_prefix: Optional[str] = None
+    last_connector_state: Optional[str] = None
+    source_lag_bytes: Optional[int] = None
+    last_health_check_at: Optional[str] = None
+    error_message: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "DataPipeline":
+        cfg_raw = d.get("config", {})
+        return cls(
+            id=d.get("id", ""),
+            organization_id=d.get("organization_id", ""),
+            name=d.get("name", ""),
+            pipeline_type=d.get("pipeline_type", ""),
+            source_service_id=d.get("source_service_id", ""),
+            sink_service_id=d.get("sink_service_id", ""),
+            status=d.get("status", ""),
+            config=DataPipelineConfig.from_dict(cfg_raw) if cfg_raw else DataPipelineConfig(),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            provision_step=d.get("provision_step"),
+            connector_name=d.get("connector_name"),
+            publication_name=d.get("publication_name"),
+            slot_name=d.get("slot_name"),
+            topic_prefix=d.get("topic_prefix"),
+            last_connector_state=d.get("last_connector_state"),
+            source_lag_bytes=d.get("source_lag_bytes"),
+            last_health_check_at=d.get("last_health_check_at"),
+            error_message=d.get("error_message"),
+            raw=d,
+        )
+
+
+@dataclass
+class DataPipelineStatus:
+    """Latest reconciler-observed status of a data pipeline."""
+
+    id: str
+    status: str
+    connector_name: Optional[str] = None
+    connector_state: Optional[str] = None
+    task_states: Optional[Any] = None
+    source_lag_bytes: Optional[int] = None
+    topic_prefix: Optional[str] = None
+    last_health_check_at: Optional[str] = None
+    error_message: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "DataPipelineStatus":
+        return cls(
+            id=d.get("id", ""),
+            status=d.get("status", ""),
+            connector_name=d.get("connector_name"),
+            connector_state=d.get("connector_state"),
+            task_states=d.get("task_states"),
+            source_lag_bytes=d.get("source_lag_bytes"),
+            topic_prefix=d.get("topic_prefix"),
+            last_health_check_at=d.get("last_health_check_at"),
+            error_message=d.get("error_message"),
+            raw=d,
+        )
+
+
+# ---- Embedding pipeline models ----
+
+# Embedding pipeline mode: how the pipeline processes its source table.
+EmbeddingPipelineMode = Literal["continuous", "scheduled", "manual"]
+
+
+@dataclass
+class EmbeddingPipeline:
+    """One auto-vectorization pipeline on a managed service."""
+
+    id: str
+    service_id: str
+    database_name: str
+    source_schema: str
+    source_table: str
+    text_columns: List[str]
+    model_provider: str
+    embedding_model: str
+    model_dimensions: int
+    target_schema: str
+    target_table: str
+    batch_size: int
+    poll_interval_seconds: int
+    mode: str
+    status: str
+    rows_processed: int
+    rows_pending: int
+    tokens_used: int
+    created_at: str
+    updated_at: str
+    provider_base_url: Optional[str] = None
+    schedule_cron: Optional[str] = None
+    source_filter: Optional[str] = None
+    max_row_retries: int = 0
+    next_run_at: Optional[str] = None
+    error_message: Optional[str] = None
+    last_processed_at: Optional[str] = None
+    last_error: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EmbeddingPipeline":
+        return cls(
+            id=d.get("id", ""),
+            service_id=d.get("service_id", ""),
+            database_name=d.get("database_name", ""),
+            source_schema=d.get("source_schema", ""),
+            source_table=d.get("source_table", ""),
+            text_columns=d.get("text_columns", []),
+            model_provider=d.get("model_provider", ""),
+            embedding_model=d.get("embedding_model", ""),
+            model_dimensions=d.get("model_dimensions", 0),
+            target_schema=d.get("target_schema", ""),
+            target_table=d.get("target_table", ""),
+            batch_size=d.get("batch_size", 100),
+            poll_interval_seconds=d.get("poll_interval_seconds", 60),
+            mode=d.get("mode", "continuous"),
+            status=d.get("status", ""),
+            rows_processed=d.get("rows_processed", 0),
+            rows_pending=d.get("rows_pending", 0),
+            tokens_used=d.get("tokens_used", 0),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            provider_base_url=d.get("provider_base_url"),
+            schedule_cron=d.get("schedule_cron"),
+            source_filter=d.get("source_filter"),
+            max_row_retries=d.get("max_row_retries", 0),
+            next_run_at=d.get("next_run_at"),
+            error_message=d.get("error_message"),
+            last_processed_at=d.get("last_processed_at"),
+            last_error=d.get("last_error"),
+            raw=d,
+        )
+
+
+@dataclass
+class EmbeddingRunErrorSample:
+    """One failed source row in an embedding pipeline run."""
+
+    source_row_id: str
+    error: str
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EmbeddingRunErrorSample":
+        return cls(
+            source_row_id=d.get("source_row_id", ""),
+            error=d.get("error", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class EmbeddingPipelineRun:
+    """One discrete embedding job execution for a scheduled or manual
+    pipeline."""
+
+    id: str
+    pipeline_id: str
+    status: str
+    trigger: str
+    rows_scanned: int
+    rows_embedded: int
+    rows_failed: int
+    tokens_used: int
+    created_at: str
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    error_message: Optional[str] = None
+    error_sample: List[EmbeddingRunErrorSample] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EmbeddingPipelineRun":
+        return cls(
+            id=d.get("id", ""),
+            pipeline_id=d.get("pipeline_id", ""),
+            status=d.get("status", ""),
+            trigger=d.get("trigger", ""),
+            rows_scanned=d.get("rows_scanned", 0),
+            rows_embedded=d.get("rows_embedded", 0),
+            rows_failed=d.get("rows_failed", 0),
+            tokens_used=d.get("tokens_used", 0),
+            created_at=d.get("created_at", ""),
+            started_at=d.get("started_at"),
+            finished_at=d.get("finished_at"),
+            error_message=d.get("error_message"),
+            error_sample=[EmbeddingRunErrorSample.from_dict(e) for e in d.get("error_sample", [])],
+            raw=d,
+        )
+
+
+# ---- Vector search models ----
+
+# Distance operator for vector similarity search.
+VectorSearchMetric = Literal["cosine", "l2", "ip"]
+
+
+@dataclass
+class VectorSearchFilter:
+    """One column filter applied to a vector search. Only ``eq`` is
+    supported."""
+
+    column: str
+    op: str
+    value: Any
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"column": self.column, "op": self.op, "value": self.value}
+
+
+@dataclass
+class VectorSearchColumn:
+    """Describes one result column."""
+
+    name: str
+    type: str
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "VectorSearchColumn":
+        return cls(name=d.get("name", ""), type=d.get("type", ""), raw=d)
+
+
+@dataclass
+class VectorSearchResponse:
+    """Result of a vector search, with the search parameters echoed back."""
+
+    columns: List[VectorSearchColumn]
+    rows: List[List[Any]]
+    row_count: int
+    truncated: bool
+    execution_ms: int
+    metric: str
+    top_k: int
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "VectorSearchResponse":
+        return cls(
+            columns=[VectorSearchColumn.from_dict(c) for c in d.get("columns", [])],
+            rows=d.get("rows", []),
+            row_count=d.get("row_count", 0),
+            truncated=d.get("truncated", False),
+            execution_ms=d.get("execution_ms", 0),
+            metric=d.get("metric", "cosine"),
+            top_k=d.get("top_k", 0),
+            raw=d,
+        )
+
+
+# ---- AI actions models ----
+
+@dataclass
+class AIActionRef:
+    """How a client can act on a feed item."""
+
+    type: str
+    tier: str
+    target: str
+    href: str
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AIActionRef":
+        return cls(
+            type=d.get("type", ""),
+            tier=d.get("tier", ""),
+            target=d.get("target", ""),
+            href=d.get("href", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class AIActionItem:
+    """One prioritized entry in the AI actions feed."""
+
+    id: str
+    kind: str
+    severity: str
+    service_id: str
+    service_name: str
+    title: str
+    summary: str
+    action: AIActionRef
+    created_at: str
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AIActionItem":
+        return cls(
+            id=d.get("id", ""),
+            kind=d.get("kind", ""),
+            severity=d.get("severity", ""),
+            service_id=d.get("service_id", ""),
+            service_name=d.get("service_name", ""),
+            title=d.get("title", ""),
+            summary=d.get("summary", ""),
+            action=AIActionRef.from_dict(d.get("action", {})),
+            created_at=d.get("created_at", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class AIActionsResponse:
+    """Feed envelope for the AI actions feed."""
+
+    items: List[AIActionItem]
+    total: int
+    truncated: bool
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AIActionsResponse":
+        return cls(
+            items=[AIActionItem.from_dict(i) for i in d.get("items", [])],
+            total=d.get("total", 0),
+            truncated=d.get("truncated", False),
+            raw=d,
+        )
+
+
+@dataclass
+class CopilotStep:
+    """One proposed tool call in a copilot plan."""
+
+    tool: str
+    tier: str
+    preview: str
+    args: Optional[Dict[str, Any]] = None
+    rationale: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CopilotStep":
+        return cls(
+            tool=d.get("tool", ""),
+            tier=d.get("tier", ""),
+            preview=d.get("preview", ""),
+            args=d.get("args"),
+            rationale=d.get("rationale", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class CopilotPlan:
+    """A previewable plan for a natural-language intent. Executes nothing."""
+
+    summary: str
+    steps: List[CopilotStep]
+    unsupported: bool
+    note: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CopilotPlan":
+        return cls(
+            summary=d.get("summary", ""),
+            steps=[CopilotStep.from_dict(s) for s in d.get("steps", [])],
+            unsupported=d.get("unsupported", False),
+            note=d.get("note", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class ExecuteAIActionResult:
+    """Response envelope for an AI action execution attempt."""
+
+    action_type: str
+    status: str
+    http_status: int
+    message: str
+    detail: Optional[Any] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ExecuteAIActionResult":
+        return cls(
+            action_type=d.get("action_type", ""),
+            status=d.get("status", ""),
+            http_status=d.get("http_status", 0),
+            message=d.get("message", ""),
+            detail=d.get("detail"),
+            raw=d,
+        )
+
+
+@dataclass
+class AIActionExecution:
+    """API view of one persisted Action Center execution."""
+
+    id: str
+    service_id: str
+    action_type: str
+    status: str
+    http_status: int
+    created_at: str
+    organization_id: Optional[str] = None
+    target_id: str = ""
+    actor_user_id: str = ""
+    reverted_at: str = ""
+    revert_status: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AIActionExecution":
+        return cls(
+            id=d.get("id", ""),
+            service_id=d.get("service_id", ""),
+            action_type=d.get("action_type", ""),
+            status=d.get("status", ""),
+            http_status=d.get("http_status", 0),
+            created_at=d.get("created_at", ""),
+            organization_id=d.get("organization_id"),
+            target_id=d.get("target_id", ""),
+            actor_user_id=d.get("actor_user_id", ""),
+            reverted_at=d.get("reverted_at", ""),
+            revert_status=d.get("revert_status", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class AIActionExecutionListResponse:
+    """Outcome-loop execution history envelope."""
+
+    executions: List[AIActionExecution]
+    total_count: int
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AIActionExecutionListResponse":
+        return cls(
+            executions=[AIActionExecution.from_dict(e) for e in d.get("executions", [])],
+            total_count=d.get("total_count", 0),
+            raw=d,
+        )
+
+
+@dataclass
+class AIActionRollbackResult:
+    """Response envelope for an accepted rollback."""
+
+    execution_id: str
+    action_type: str
+    revert_status: str
+    message: str
+    task_id: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AIActionRollbackResult":
+        return cls(
+            execution_id=d.get("execution_id", ""),
+            action_type=d.get("action_type", ""),
+            revert_status=d.get("revert_status", ""),
+            message=d.get("message", ""),
+            task_id=d.get("task_id", ""),
+            raw=d,
+        )
+
+
 # ---- Error types ----
 
 class FoundryDBError(Exception):

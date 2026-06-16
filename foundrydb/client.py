@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import base64
 import json
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional, Union, TYPE_CHECKING
 
 import httpx
 
@@ -19,6 +19,15 @@ if TYPE_CHECKING:
     from .organizations import OrganizationsAPI, AsyncOrganizationsAPI
     from .app_services import AppServicesAPI, AsyncAppServicesAPI
     from .edge import EdgeAPI, AsyncEdgeAPI
+    from .app_jobs import AppJobsAPI, AsyncAppJobsAPI
+    from .queues import QueuesAPI, AsyncQueuesAPI
+    from .file_services import FileServicesAPI, AsyncFileServicesAPI
+    from .inference import InferenceAPI, AsyncInferenceAPI
+    from .webhooks import WebhooksAPI, AsyncWebhooksAPI
+    from .data_pipelines import DataPipelinesAPI, AsyncDataPipelinesAPI
+    from .embedding_pipelines import EmbeddingPipelinesAPI, AsyncEmbeddingPipelinesAPI
+    from .vector_search import VectorSearchAPI, AsyncVectorSearchAPI
+    from .ai_actions import AIActionsAPI, AsyncAIActionsAPI
 
 
 def _build_auth_header(username: str, password: str) -> str:
@@ -97,9 +106,10 @@ class HTTPClient:
         _raise_for_status(resp)
         return resp.json() if resp.content else None
 
-    def delete(self, path: str) -> None:
+    def delete(self, path: str) -> Optional[Any]:
         resp = self._client.delete(path)
         _raise_for_status(resp)
+        return resp.json() if resp.content else None
 
     def close(self) -> None:
         self._client.close()
@@ -168,9 +178,10 @@ class AsyncHTTPClient:
         _raise_for_status(resp)
         return resp.json() if resp.content else None
 
-    async def delete(self, path: str) -> None:
+    async def delete(self, path: str) -> Optional[Any]:
         resp = await self._client.delete(path)
         _raise_for_status(resp)
+        return resp.json() if resp.content else None
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -222,6 +233,15 @@ class FoundryDB:
         from .organizations import OrganizationsAPI
         from .app_services import AppServicesAPI
         from .edge import EdgeAPI
+        from .app_jobs import AppJobsAPI
+        from .queues import QueuesAPI
+        from .file_services import FileServicesAPI
+        from .inference import InferenceAPI
+        from .webhooks import WebhooksAPI
+        from .data_pipelines import DataPipelinesAPI
+        from .embedding_pipelines import EmbeddingPipelinesAPI
+        from .vector_search import VectorSearchAPI
+        from .ai_actions import AIActionsAPI
 
         http = HTTPClient(api_url, username, password, timeout, organization_id=organization_id)
         self.services: ServicesAPI = ServicesAPI(http)
@@ -231,6 +251,15 @@ class FoundryDB:
         self.organizations: OrganizationsAPI = OrganizationsAPI(http)
         self.app_services: AppServicesAPI = AppServicesAPI(http)
         self.edge: EdgeAPI = EdgeAPI(http)
+        self.app_jobs: AppJobsAPI = AppJobsAPI(http)
+        self.queues: QueuesAPI = QueuesAPI(http)
+        self.file_services: FileServicesAPI = FileServicesAPI(http)
+        self.inference: InferenceAPI = InferenceAPI(http)
+        self.webhooks: WebhooksAPI = WebhooksAPI(http)
+        self.data_pipelines: DataPipelinesAPI = DataPipelinesAPI(http)
+        self.embedding_pipelines: EmbeddingPipelinesAPI = EmbeddingPipelinesAPI(http)
+        self.vector_search: VectorSearchAPI = VectorSearchAPI(http)
+        self.ai_actions: AIActionsAPI = AIActionsAPI(http)
 
     def close(self) -> None:
         self.services._http.close()  # type: ignore[attr-defined]
@@ -287,6 +316,15 @@ class AsyncFoundryDB:
         from .organizations import AsyncOrganizationsAPI
         from .app_services import AsyncAppServicesAPI
         from .edge import AsyncEdgeAPI
+        from .app_jobs import AsyncAppJobsAPI
+        from .queues import AsyncQueuesAPI
+        from .file_services import AsyncFileServicesAPI
+        from .inference import AsyncInferenceAPI
+        from .webhooks import AsyncWebhooksAPI
+        from .data_pipelines import AsyncDataPipelinesAPI
+        from .embedding_pipelines import AsyncEmbeddingPipelinesAPI
+        from .vector_search import AsyncVectorSearchAPI
+        from .ai_actions import AsyncAIActionsAPI
 
         http = AsyncHTTPClient(api_url, username, password, timeout, organization_id=organization_id)
         self.services: AsyncServicesAPI = AsyncServicesAPI(http)
@@ -296,6 +334,15 @@ class AsyncFoundryDB:
         self.organizations: AsyncOrganizationsAPI = AsyncOrganizationsAPI(http)
         self.app_services: AsyncAppServicesAPI = AsyncAppServicesAPI(http)
         self.edge: AsyncEdgeAPI = AsyncEdgeAPI(http)
+        self.app_jobs: AsyncAppJobsAPI = AsyncAppJobsAPI(http)
+        self.queues: AsyncQueuesAPI = AsyncQueuesAPI(http)
+        self.file_services: AsyncFileServicesAPI = AsyncFileServicesAPI(http)
+        self.inference: AsyncInferenceAPI = AsyncInferenceAPI(http)
+        self.webhooks: AsyncWebhooksAPI = AsyncWebhooksAPI(http)
+        self.data_pipelines: AsyncDataPipelinesAPI = AsyncDataPipelinesAPI(http)
+        self.embedding_pipelines: AsyncEmbeddingPipelinesAPI = AsyncEmbeddingPipelinesAPI(http)
+        self.vector_search: AsyncVectorSearchAPI = AsyncVectorSearchAPI(http)
+        self.ai_actions: AsyncAIActionsAPI = AsyncAIActionsAPI(http)
 
     async def aclose(self) -> None:
         await self.services._http.aclose()  # type: ignore[attr-defined]

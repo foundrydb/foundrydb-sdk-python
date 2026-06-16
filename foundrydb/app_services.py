@@ -3,7 +3,7 @@ FoundryDB SDK - App Services API (sync and async).
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional  # noqa: F401
 
 from .client import HTTPClient, AsyncHTTPClient
 from .types import (
@@ -263,6 +263,65 @@ class AppServicesAPI:
         )
         return data.get("task_id", "") if data else ""
 
+    def delete_app_service_auth_user(
+        self,
+        app_service_id: str,
+        *,
+        email: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> str:
+        """Erase one end-user under the GDPR right to erasure (Art. 17).
+
+        Exactly one of ``email`` or ``user_id`` must be supplied. The erasure
+        removes the user and their identity data (identities, sessions, refresh
+        tokens, MFA enrolments, pending login/oauth tokens) and scrubs the
+        user's audit-log rows. It is dispatched asynchronously to the backing
+        database's primary VM.
+
+        Args:
+            app_service_id: ID of the app service.
+            email: Address the end-user by email. Mutually exclusive with
+                ``user_id``.
+            user_id: Address the end-user by their auth subject UUID. Mutually
+                exclusive with ``email``.
+
+        Returns:
+            The dispatched task id for status polling.
+        """
+        if not email and not user_id:
+            raise ValueError("Exactly one of email or user_id must be provided")
+        body: Dict[str, Any] = {}
+        if email:
+            body["email"] = email
+        if user_id:
+            body["user_id"] = user_id
+        data = self._http.post(
+            f"/app-services/{app_service_id}/auth/users/delete", body
+        )
+        return data.get("task_id", "") if data else ""
+
+    def delete_app_service_auth_user_by_identifier(
+        self, app_service_id: str, identifier: str
+    ) -> str:
+        """Erase one end-user by identifier via DELETE
+        /app-services/{id}/auth/users/{identifier}.
+
+        The identifier is an opaque string addressing the user (typically
+        their subject UUID or encoded email). The erasure semantics are
+        identical to ``delete_app_service_auth_user``.
+
+        Args:
+            app_service_id: ID of the app service.
+            identifier: The user identifier to erase.
+
+        Returns:
+            The dispatched task id for status polling.
+        """
+        data = self._http.delete(
+            f"/app-services/{app_service_id}/auth/users/{identifier}"
+        )
+        return data.get("task_id", "") if data else ""  # type: ignore[union-attr]
+
 
 class AsyncAppServicesAPI:
     """Manages FoundryDB app services (async)."""
@@ -494,3 +553,54 @@ class AsyncAppServicesAPI:
             f"/app-services/{app_service_id}/auth/sessions/{session_id}/revoke"
         )
         return data.get("task_id", "") if data else ""
+
+    async def delete_app_service_auth_user(
+        self,
+        app_service_id: str,
+        *,
+        email: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> str:
+        """Erase one end-user under the GDPR right to erasure (Art. 17).
+
+        Exactly one of ``email`` or ``user_id`` must be supplied.
+
+        Args:
+            app_service_id: ID of the app service.
+            email: Address the end-user by email. Mutually exclusive with
+                ``user_id``.
+            user_id: Address the end-user by their auth subject UUID. Mutually
+                exclusive with ``email``.
+
+        Returns:
+            The dispatched task id for status polling.
+        """
+        if not email and not user_id:
+            raise ValueError("Exactly one of email or user_id must be provided")
+        body: Dict[str, Any] = {}
+        if email:
+            body["email"] = email
+        if user_id:
+            body["user_id"] = user_id
+        data = await self._http.post(
+            f"/app-services/{app_service_id}/auth/users/delete", body
+        )
+        return data.get("task_id", "") if data else ""
+
+    async def delete_app_service_auth_user_by_identifier(
+        self, app_service_id: str, identifier: str
+    ) -> str:
+        """Erase one end-user by identifier via DELETE
+        /app-services/{id}/auth/users/{identifier}.
+
+        Args:
+            app_service_id: ID of the app service.
+            identifier: The user identifier to erase.
+
+        Returns:
+            The dispatched task id for status polling.
+        """
+        data = await self._http.delete(
+            f"/app-services/{app_service_id}/auth/users/{identifier}"
+        )
+        return data.get("task_id", "") if data else ""  # type: ignore[union-attr]
