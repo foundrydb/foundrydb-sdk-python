@@ -13,6 +13,7 @@ from .types import (
     AuthConfigurationWithKeys,
     AuthEnableRequest,
     AuthSigningKey,
+    IdpProviderConfig,
 )
 
 
@@ -322,6 +323,74 @@ class AppServicesAPI:
         )
         return data.get("task_id", "") if data else ""  # type: ignore[union-attr]
 
+    def list_auth_providers(self, app_service_id: str) -> List[IdpProviderConfig]:
+        """List the social-login providers configured for an app service's auth.
+
+        Returns the non-secret portion of each provider record. Client secrets
+        are custodied in the platform secret store and are never returned.
+
+        Args:
+            app_service_id: ID of the app service.
+
+        Returns:
+            The list of configured social-login providers.
+        """
+        data = self._http.get(f"/app-services/{app_service_id}/auth/providers")
+        return [IdpProviderConfig.from_dict(p) for p in data.get("providers", [])]
+
+    def upsert_auth_provider(
+        self,
+        app_service_id: str,
+        provider: str,
+        *,
+        client_id: str,
+        client_secret: str,
+        display_name: Optional[str] = None,
+    ) -> List[IdpProviderConfig]:
+        """Add or update a social-login provider for an app service's auth.
+
+        The ``client_secret`` is write-only: it is stored in the platform
+        secret store and never returned in any response.
+
+        Args:
+            app_service_id: ID of the app service.
+            provider: Provider identifier (e.g. ``"google"`` or ``"github"``).
+            client_id: OAuth2 client ID issued by the provider.
+            client_secret: OAuth2 client secret issued by the provider. Stored
+                in the secret store; never logged or returned.
+            display_name: Optional human-readable label shown on the login UI.
+
+        Returns:
+            The updated list of all configured social-login providers.
+        """
+        body: Dict[str, Any] = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }
+        if display_name is not None:
+            body["display_name"] = display_name
+        data = self._http.put(
+            f"/app-services/{app_service_id}/auth/providers/{provider}", body
+        )
+        return [IdpProviderConfig.from_dict(p) for p in data.get("providers", [])]
+
+    def remove_auth_provider(
+        self, app_service_id: str, provider: str
+    ) -> List[IdpProviderConfig]:
+        """Remove a social-login provider from an app service's auth.
+
+        Args:
+            app_service_id: ID of the app service.
+            provider: Provider identifier to remove (e.g. ``"google"``).
+
+        Returns:
+            The remaining list of configured social-login providers.
+        """
+        data = self._http.delete(
+            f"/app-services/{app_service_id}/auth/providers/{provider}"
+        )
+        return [IdpProviderConfig.from_dict(p) for p in data.get("providers", [])]  # type: ignore[union-attr]
+
 
 class AsyncAppServicesAPI:
     """Manages FoundryDB app services (async)."""
@@ -604,3 +673,71 @@ class AsyncAppServicesAPI:
             f"/app-services/{app_service_id}/auth/users/{identifier}"
         )
         return data.get("task_id", "") if data else ""  # type: ignore[union-attr]
+
+    async def list_auth_providers(self, app_service_id: str) -> List[IdpProviderConfig]:
+        """List the social-login providers configured for an app service's auth.
+
+        Returns the non-secret portion of each provider record. Client secrets
+        are custodied in the platform secret store and are never returned.
+
+        Args:
+            app_service_id: ID of the app service.
+
+        Returns:
+            The list of configured social-login providers.
+        """
+        data = await self._http.get(f"/app-services/{app_service_id}/auth/providers")
+        return [IdpProviderConfig.from_dict(p) for p in data.get("providers", [])]
+
+    async def upsert_auth_provider(
+        self,
+        app_service_id: str,
+        provider: str,
+        *,
+        client_id: str,
+        client_secret: str,
+        display_name: Optional[str] = None,
+    ) -> List[IdpProviderConfig]:
+        """Add or update a social-login provider for an app service's auth.
+
+        The ``client_secret`` is write-only: it is stored in the platform
+        secret store and never returned in any response.
+
+        Args:
+            app_service_id: ID of the app service.
+            provider: Provider identifier (e.g. ``"google"`` or ``"github"``).
+            client_id: OAuth2 client ID issued by the provider.
+            client_secret: OAuth2 client secret issued by the provider. Stored
+                in the secret store; never logged or returned.
+            display_name: Optional human-readable label shown on the login UI.
+
+        Returns:
+            The updated list of all configured social-login providers.
+        """
+        body: Dict[str, Any] = {
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }
+        if display_name is not None:
+            body["display_name"] = display_name
+        data = await self._http.put(
+            f"/app-services/{app_service_id}/auth/providers/{provider}", body
+        )
+        return [IdpProviderConfig.from_dict(p) for p in data.get("providers", [])]
+
+    async def remove_auth_provider(
+        self, app_service_id: str, provider: str
+    ) -> List[IdpProviderConfig]:
+        """Remove a social-login provider from an app service's auth.
+
+        Args:
+            app_service_id: ID of the app service.
+            provider: Provider identifier to remove (e.g. ``"google"``).
+
+        Returns:
+            The remaining list of configured social-login providers.
+        """
+        data = await self._http.delete(
+            f"/app-services/{app_service_id}/auth/providers/{provider}"
+        )
+        return [IdpProviderConfig.from_dict(p) for p in data.get("providers", [])]  # type: ignore[union-attr]
