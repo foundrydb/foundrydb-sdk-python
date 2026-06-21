@@ -134,6 +134,10 @@ from .types import (
     ComplianceReportRecord,
     ComplianceSigningKey,
     ComplianceSigningKeySet,
+    # Attachments
+    AttachmentCatalogEntry,
+    AttachmentSummary,
+    AttachmentCredentials,
 )
 from .services import ServicesAPI, AsyncServicesAPI
 from .users import UsersAPI, AsyncUsersAPI
@@ -152,6 +156,7 @@ from .embedding_pipelines import EmbeddingPipelinesAPI, AsyncEmbeddingPipelinesA
 from .vector_search import VectorSearchAPI, AsyncVectorSearchAPI
 from .ai_actions import AIActionsAPI, AsyncAIActionsAPI
 from .compliance import ComplianceAPI, AsyncComplianceAPI
+from .attachments import AttachmentsAPI, AsyncAttachmentsAPI
 
 __version__ = "0.5.1"
 __all__ = [
@@ -262,6 +267,10 @@ __all__ = [
     "ComplianceReportRecord",
     "ComplianceSigningKey",
     "ComplianceSigningKeySet",
+    # Attachment types
+    "AttachmentCatalogEntry",
+    "AttachmentSummary",
+    "AttachmentCredentials",
     # API classes (sync)
     "ServicesAPI",
     "UsersAPI",
@@ -280,6 +289,7 @@ __all__ = [
     "VectorSearchAPI",
     "AIActionsAPI",
     "ComplianceAPI",
+    "AttachmentsAPI",
     # API classes (async)
     "AsyncServicesAPI",
     "AsyncUsersAPI",
@@ -298,4 +308,5 @@ __all__ = [
     "AsyncVectorSearchAPI",
     "AsyncAIActionsAPI",
     "AsyncComplianceAPI",
+    "AsyncAttachmentsAPI",
 ]

@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from .vector_search import VectorSearchAPI, AsyncVectorSearchAPI
     from .ai_actions import AIActionsAPI, AsyncAIActionsAPI
     from .compliance import ComplianceAPI, AsyncComplianceAPI
+    from .attachments import AttachmentsAPI, AsyncAttachmentsAPI
 
 
 def _build_auth_header(username: str, password: str) -> str:
@@ -256,6 +257,7 @@ class FoundryDB:
         from .vector_search import VectorSearchAPI
         from .ai_actions import AIActionsAPI
         from .compliance import ComplianceAPI
+        from .attachments import AttachmentsAPI
 
         http = HTTPClient(api_url, username, password, timeout, organization_id=organization_id)
         self.services: ServicesAPI = ServicesAPI(http)
@@ -275,6 +277,7 @@ class FoundryDB:
         self.vector_search: VectorSearchAPI = VectorSearchAPI(http)
         self.ai_actions: AIActionsAPI = AIActionsAPI(http)
         self.compliance: ComplianceAPI = ComplianceAPI(http)
+        self.attachments: AttachmentsAPI = AttachmentsAPI(http)
 
     def close(self) -> None:
         self.services._http.close()  # type: ignore[attr-defined]
@@ -341,6 +344,7 @@ class AsyncFoundryDB:
         from .vector_search import AsyncVectorSearchAPI
         from .ai_actions import AsyncAIActionsAPI
         from .compliance import AsyncComplianceAPI
+        from .attachments import AsyncAttachmentsAPI
 
         http = AsyncHTTPClient(api_url, username, password, timeout, organization_id=organization_id)
         self.services: AsyncServicesAPI = AsyncServicesAPI(http)
@@ -360,6 +364,7 @@ class AsyncFoundryDB:
         self.vector_search: AsyncVectorSearchAPI = AsyncVectorSearchAPI(http)
         self.ai_actions: AsyncAIActionsAPI = AsyncAIActionsAPI(http)
         self.compliance: AsyncComplianceAPI = AsyncComplianceAPI(http)
+        self.attachments: AsyncAttachmentsAPI = AsyncAttachmentsAPI(http)
 
     async def aclose(self) -> None:
         await self.services._http.aclose()  # type: ignore[attr-defined]

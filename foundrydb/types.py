@@ -2473,6 +2473,90 @@ class ComplianceSigningKeySet:
         )
 
 
+# ---- Companion-app attachment models ----
+
+@dataclass
+class AttachmentCatalogEntry:
+    """One entry in the companion-app attachment catalog.
+
+    ``kind`` is the stable identifier used when creating an attachment
+    (e.g. ``"metabase"``). ``requires_parent_kinds`` lists the database
+    engine types the companion app can attach to.
+    """
+
+    kind: str
+    display_name: str
+    description: str
+    category: str
+    default_plan: str
+    requires_parent_kinds: List[str] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AttachmentCatalogEntry":
+        return cls(
+            kind=d.get("kind", ""),
+            display_name=d.get("display_name", ""),
+            description=d.get("description", ""),
+            category=d.get("category", ""),
+            default_plan=d.get("default_plan", ""),
+            requires_parent_kinds=d.get("requires_parent_kinds", []),
+            raw=d,
+        )
+
+
+@dataclass
+class AttachmentSummary:
+    """Summary of one companion-app attachment on a managed service."""
+
+    attachment_id: str
+    app_service_id: str
+    kind: str
+    name: str
+    status: str
+    wiring_status: str
+    url: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AttachmentSummary":
+        return cls(
+            attachment_id=d.get("attachment_id", ""),
+            app_service_id=d.get("app_service_id", ""),
+            kind=d.get("kind", ""),
+            name=d.get("name", ""),
+            status=d.get("status", ""),
+            wiring_status=d.get("wiring_status", ""),
+            url=d.get("url", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class AttachmentCredentials:
+    """Admin credentials for a companion-app attachment.
+
+    ``generated`` holds any extra key/value pairs the companion app
+    exposes (e.g. API tokens, embed secrets).
+    """
+
+    admin_email: str
+    admin_password: str
+    login_url: str
+    generated: Dict[str, str] = field(default_factory=dict)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "AttachmentCredentials":
+        return cls(
+            admin_email=d.get("admin_email", ""),
+            admin_password=d.get("admin_password", ""),
+            login_url=d.get("login_url", ""),
+            generated=d.get("generated", {}),
+            raw=d,
+        )
+
+
 # ---- Error types ----
 
 class FoundryDBError(Exception):
