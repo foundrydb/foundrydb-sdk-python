@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from .embedding_pipelines import EmbeddingPipelinesAPI, AsyncEmbeddingPipelinesAPI
     from .vector_search import VectorSearchAPI, AsyncVectorSearchAPI
     from .ai_actions import AIActionsAPI, AsyncAIActionsAPI
+    from .compliance import ComplianceAPI, AsyncComplianceAPI
 
 
 def _build_auth_header(username: str, password: str) -> str:
@@ -111,6 +112,12 @@ class HTTPClient:
         _raise_for_status(resp)
         return resp.json() if resp.content else None
 
+    def get_raw(self, path: str, params: Optional[Dict[str, Any]] = None) -> bytes:
+        """Perform a GET and return the raw response bytes (for binary downloads)."""
+        resp = self._client.get(path, params=params)
+        _raise_for_status(resp)
+        return resp.content
+
     def close(self) -> None:
         self._client.close()
 
@@ -183,6 +190,12 @@ class AsyncHTTPClient:
         _raise_for_status(resp)
         return resp.json() if resp.content else None
 
+    async def get_raw(self, path: str, params: Optional[Dict[str, Any]] = None) -> bytes:
+        """Perform a GET and return the raw response bytes (for binary downloads)."""
+        resp = await self._client.get(path, params=params)
+        _raise_for_status(resp)
+        return resp.content
+
     async def aclose(self) -> None:
         await self._client.aclose()
 
@@ -242,6 +255,7 @@ class FoundryDB:
         from .embedding_pipelines import EmbeddingPipelinesAPI
         from .vector_search import VectorSearchAPI
         from .ai_actions import AIActionsAPI
+        from .compliance import ComplianceAPI
 
         http = HTTPClient(api_url, username, password, timeout, organization_id=organization_id)
         self.services: ServicesAPI = ServicesAPI(http)
@@ -260,6 +274,7 @@ class FoundryDB:
         self.embedding_pipelines: EmbeddingPipelinesAPI = EmbeddingPipelinesAPI(http)
         self.vector_search: VectorSearchAPI = VectorSearchAPI(http)
         self.ai_actions: AIActionsAPI = AIActionsAPI(http)
+        self.compliance: ComplianceAPI = ComplianceAPI(http)
 
     def close(self) -> None:
         self.services._http.close()  # type: ignore[attr-defined]
@@ -325,6 +340,7 @@ class AsyncFoundryDB:
         from .embedding_pipelines import AsyncEmbeddingPipelinesAPI
         from .vector_search import AsyncVectorSearchAPI
         from .ai_actions import AsyncAIActionsAPI
+        from .compliance import AsyncComplianceAPI
 
         http = AsyncHTTPClient(api_url, username, password, timeout, organization_id=organization_id)
         self.services: AsyncServicesAPI = AsyncServicesAPI(http)
@@ -343,6 +359,7 @@ class AsyncFoundryDB:
         self.embedding_pipelines: AsyncEmbeddingPipelinesAPI = AsyncEmbeddingPipelinesAPI(http)
         self.vector_search: AsyncVectorSearchAPI = AsyncVectorSearchAPI(http)
         self.ai_actions: AsyncAIActionsAPI = AsyncAIActionsAPI(http)
+        self.compliance: AsyncComplianceAPI = AsyncComplianceAPI(http)
 
     async def aclose(self) -> None:
         await self.services._http.aclose()  # type: ignore[attr-defined]

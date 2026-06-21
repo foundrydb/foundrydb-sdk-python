@@ -125,6 +125,15 @@ from .types import (
     AIActionExecution,
     AIActionExecutionListResponse,
     AIActionRollbackResult,
+    # Compliance
+    ControlAssertion,
+    CompliancePacket,
+    CompliancePacketSignature,
+    CompliancePacketResponse,
+    GenerateComplianceReportResponse,
+    ComplianceReportRecord,
+    ComplianceSigningKey,
+    ComplianceSigningKeySet,
 )
 from .services import ServicesAPI, AsyncServicesAPI
 from .users import UsersAPI, AsyncUsersAPI
@@ -142,8 +151,9 @@ from .data_pipelines import DataPipelinesAPI, AsyncDataPipelinesAPI
 from .embedding_pipelines import EmbeddingPipelinesAPI, AsyncEmbeddingPipelinesAPI
 from .vector_search import VectorSearchAPI, AsyncVectorSearchAPI
 from .ai_actions import AIActionsAPI, AsyncAIActionsAPI
+from .compliance import ComplianceAPI, AsyncComplianceAPI
 
-__version__ = "0.4.0"
+__version__ = "0.5.1"
 __all__ = [
     # Clients
     "FoundryDB",
@@ -243,6 +253,15 @@ __all__ = [
     "AIActionExecution",
     "AIActionExecutionListResponse",
     "AIActionRollbackResult",
+    # Compliance types
+    "ControlAssertion",
+    "CompliancePacket",
+    "CompliancePacketSignature",
+    "CompliancePacketResponse",
+    "GenerateComplianceReportResponse",
+    "ComplianceReportRecord",
+    "ComplianceSigningKey",
+    "ComplianceSigningKeySet",
     # API classes (sync)
     "ServicesAPI",
     "UsersAPI",
@@ -260,6 +279,7 @@ __all__ = [
     "EmbeddingPipelinesAPI",
     "VectorSearchAPI",
     "AIActionsAPI",
+    "ComplianceAPI",
     # API classes (async)
     "AsyncServicesAPI",
     "AsyncUsersAPI",
@@ -277,4 +297,5 @@ __all__ = [
     "AsyncEmbeddingPipelinesAPI",
     "AsyncVectorSearchAPI",
     "AsyncAIActionsAPI",
+    "AsyncComplianceAPI",
 ]

@@ -398,6 +398,65 @@ req = CreateServiceRequest(
 print(req.to_dict())
 ```
 
+## Compliance Evidence Packets
+
+FoundryDB generates signed compliance evidence packets for SOC 2 Type II and
+GDPR Article 30 Records of Processing Activities (ROPA). Packets are persisted
+per organization and can be retrieved as structured JSON or as rendered PDFs.
+
+### Generate a report
+
+```python
+result = client.compliance.generate_compliance_report(
+    org_id="org_abc123",
+    framework="soc2",          # or "gdpr_ropa"
+)
+print(result.report_id)
+print(result.packet.framework, result.packet.period_start, result.packet.period_end)
+print(result.signature.key_id, result.signature.algorithm)
+```
+
+### List existing reports
+
+```python
+reports = client.compliance.list_compliance_reports(org_id="org_abc123")
+for r in reports:
+    print(r.id, r.framework, r.generated_at, r.status, r.has_pdf)
+```
+
+### Download a report as JSON
+
+```python
+resp = client.compliance.download_compliance_report_json(
+    org_id="org_abc123",
+    report_id=reports[0].id,
+)
+for ctrl in resp.packet.controls:
+    print(ctrl.control_id, ctrl.status, ctrl.title)
+```
+
+### Download a report as PDF
+
+```python
+pdf_bytes = client.compliance.download_compliance_report_pdf(
+    org_id="org_abc123",
+    report_id=reports[0].id,
+)
+with open("compliance_report.pdf", "wb") as f:
+    f.write(pdf_bytes)
+```
+
+### Verify signatures offline (no credentials required)
+
+```python
+key_set = client.compliance.compliance_signing_keys()
+for key in key_set.keys:
+    print(key.key_id, key.algorithm, "active=" + str(key.active))
+```
+
+The `/.well-known/compliance-signing-keys` endpoint is public and does not
+require authentication, allowing offline verification of evidence packets.
+
 ## License
 
 MIT

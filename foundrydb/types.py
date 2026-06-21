@@ -2283,6 +2283,196 @@ class AIActionRollbackResult:
         )
 
 
+# ---- Compliance models ----
+
+@dataclass
+class ControlAssertion:
+    """One evaluated control in a compliance packet."""
+
+    control_id: str
+    title: str
+    assertion: str
+    status: str
+    evidence_refs: List[str] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ControlAssertion":
+        return cls(
+            control_id=d.get("control_id", ""),
+            title=d.get("title", ""),
+            assertion=d.get("assertion", ""),
+            status=d.get("status", ""),
+            evidence_refs=d.get("evidence_refs", []),
+            raw=d,
+        )
+
+
+@dataclass
+class CompliancePacket:
+    """Structured evidence packet covering one compliance framework and period."""
+
+    schema_version: str
+    framework: str
+    generated_at: str
+    period_start: str
+    period_end: str
+    organization: Dict[str, Any]
+    scope_boundary: str
+    controls: List[ControlAssertion]
+    summary: Dict[str, Any]
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CompliancePacket":
+        return cls(
+            schema_version=d.get("schema_version", ""),
+            framework=d.get("framework", ""),
+            generated_at=d.get("generated_at", ""),
+            period_start=d.get("period_start", ""),
+            period_end=d.get("period_end", ""),
+            organization=d.get("organization", {}),
+            scope_boundary=d.get("scope_boundary", ""),
+            controls=[ControlAssertion.from_dict(c) for c in d.get("controls", [])],
+            summary=d.get("summary", {}),
+            raw=d,
+        )
+
+
+@dataclass
+class CompliancePacketSignature:
+    """Detached signature covering the canonical serialization of a compliance packet."""
+
+    algorithm: str
+    key_id: str
+    value: str
+    canonical_sha256: str
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CompliancePacketSignature":
+        return cls(
+            algorithm=d.get("algorithm", ""),
+            key_id=d.get("key_id", ""),
+            value=d.get("value", ""),
+            canonical_sha256=d.get("canonical_sha256", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class CompliancePacketResponse:
+    """GET /compliance-reports/{id} response: packet with its detached signature."""
+
+    packet: CompliancePacket
+    signature: CompliancePacketSignature
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CompliancePacketResponse":
+        return cls(
+            packet=CompliancePacket.from_dict(d.get("packet", {})),
+            signature=CompliancePacketSignature.from_dict(d.get("signature", {})),
+            raw=d,
+        )
+
+
+@dataclass
+class GenerateComplianceReportResponse:
+    """Response from POST /compliance-reports: the new report ID plus the packet."""
+
+    report_id: str
+    packet: CompliancePacket
+    signature: CompliancePacketSignature
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "GenerateComplianceReportResponse":
+        return cls(
+            report_id=d.get("report_id", ""),
+            packet=CompliancePacket.from_dict(d.get("packet", {})),
+            signature=CompliancePacketSignature.from_dict(d.get("signature", {})),
+            raw=d,
+        )
+
+
+@dataclass
+class ComplianceReportRecord:
+    """One entry in the compliance report index for an organization."""
+
+    id: str
+    organization_id: str
+    framework: str
+    schema_version: str
+    period_start: str
+    period_end: str
+    generated_at: str
+    generated_by: str
+    signing_key_id: str
+    algorithm: str
+    status: str
+    has_pdf: bool
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ComplianceReportRecord":
+        return cls(
+            id=d.get("id", ""),
+            organization_id=d.get("organization_id", ""),
+            framework=d.get("framework", ""),
+            schema_version=d.get("schema_version", ""),
+            period_start=d.get("period_start", ""),
+            period_end=d.get("period_end", ""),
+            generated_at=d.get("generated_at", ""),
+            generated_by=d.get("generated_by", ""),
+            signing_key_id=d.get("signing_key_id", ""),
+            algorithm=d.get("algorithm", ""),
+            status=d.get("status", ""),
+            has_pdf=d.get("has_pdf", False),
+            raw=d,
+        )
+
+
+@dataclass
+class ComplianceSigningKey:
+    """One public signing key in the platform key set."""
+
+    key_id: str
+    algorithm: str
+    public_key: str
+    active: bool
+    retired_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ComplianceSigningKey":
+        return cls(
+            key_id=d.get("key_id", ""),
+            algorithm=d.get("algorithm", ""),
+            public_key=d.get("public_key", ""),
+            active=d.get("active", False),
+            retired_at=d.get("retired_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class ComplianceSigningKeySet:
+    """JWKS-style response from /.well-known/compliance-signing-keys."""
+
+    algorithm: str
+    keys: List[ComplianceSigningKey]
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ComplianceSigningKeySet":
+        return cls(
+            algorithm=d.get("algorithm", ""),
+            keys=[ComplianceSigningKey.from_dict(k) for k in d.get("keys", [])],
+            raw=d,
+        )
+
+
 # ---- Error types ----
 
 class FoundryDBError(Exception):
