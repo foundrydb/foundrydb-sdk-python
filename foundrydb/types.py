@@ -2574,6 +2574,230 @@ StackStatus = Literal[
 # Kind of resource provisioned inside a stack.
 StackResourceKind = Literal["database", "files", "inference", "app"]
 
+# Visibility of a custom stack template in the marketplace.
+StackVisibility = Literal["private", "public"]
+
+# Publication lifecycle of a custom stack template.
+StackPublicationStatus = Literal["draft", "pending_review", "published", "unpublished"]
+
+
+@dataclass
+class StackDescriptor:
+    """One resource descriptor inside a custom stack template definition.
+
+    ``kind`` must be one of the ``StackResourceKind`` literals. ``symbolic_name``
+    is the stable intra-template identifier used in ``depends_on`` references.
+    ``config`` holds kind-specific parameters (plan, version, zone, etc.).
+    ``depends_on`` lists ``symbolic_name`` values of resources that must be
+    Running before this one is provisioned.
+    """
+
+    symbolic_name: str
+    kind: str
+    config: Dict[str, Any]
+    depends_on: List[str] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "StackDescriptor":
+        return cls(
+            symbolic_name=d.get("symbolic_name", ""),
+            kind=d.get("kind", ""),
+            config=d.get("config", {}),
+            depends_on=d.get("depends_on", []),
+            raw=d,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        body: Dict[str, Any] = {
+            "symbolic_name": self.symbolic_name,
+            "kind": self.kind,
+            "config": self.config,
+        }
+        if self.depends_on:
+            body["depends_on"] = self.depends_on
+        return body
+
+
+@dataclass
+class CustomTemplateRequest:
+    """Parameters for creating or updating a custom stack template.
+
+    ``display_name`` and ``description`` are human-readable metadata.
+    ``version`` is a semver string (e.g. ``"1.0.0"``).
+    ``resources`` is the ordered list of resource descriptors that define what
+    the template provisions. ``visibility`` controls whether the template is
+    visible only to the owning organization (``"private"``) or listed in the
+    marketplace (``"public"`` after publication review).
+    """
+
+    display_name: str
+    description: str
+    version: str
+    resources: List[StackDescriptor]
+    visibility: StackVisibility = "private"
+    tags: Optional[List[str]] = None
+    readme: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        body: Dict[str, Any] = {
+            "display_name": self.display_name,
+            "description": self.description,
+            "version": self.version,
+            "resources": [r.to_dict() for r in self.resources],
+            "visibility": self.visibility,
+        }
+        if self.tags is not None:
+            body["tags"] = self.tags
+        if self.readme is not None:
+            body["readme"] = self.readme
+        return body
+
+
+@dataclass
+class CustomStackTemplate:
+    """A customer-authored stack template registered in the platform.
+
+    ``name`` is the system-assigned stable identifier. ``publication_status``
+    tracks the review and publication lifecycle. ``source_template_id`` is set
+    when the template was forked from a marketplace entry.
+    """
+
+    id: str
+    name: str
+    display_name: str
+    description: str
+    version: str
+    visibility: str
+    publication_status: str
+    organization_id: str
+    created_at: str
+    updated_at: str
+    resources: List[StackDescriptor] = field(default_factory=list)
+    tags: List[str] = field(default_factory=list)
+    readme: Optional[str] = None
+    source_template_id: Optional[str] = None
+    source_publisher_org_id: Optional[str] = None
+    published_at: Optional[str] = None
+    unpublished_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "CustomStackTemplate":
+        return cls(
+            id=d.get("id", ""),
+            name=d.get("name", ""),
+            display_name=d.get("display_name", ""),
+            description=d.get("description", ""),
+            version=d.get("version", ""),
+            visibility=d.get("visibility", "private"),
+            publication_status=d.get("publication_status", "draft"),
+            organization_id=d.get("organization_id", ""),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            resources=[StackDescriptor.from_dict(r) for r in d.get("resources", [])],
+            tags=d.get("tags", []),
+            readme=d.get("readme"),
+            source_template_id=d.get("source_template_id"),
+            source_publisher_org_id=d.get("source_publisher_org_id"),
+            published_at=d.get("published_at"),
+            unpublished_at=d.get("unpublished_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class ResourceChange:
+    """One resource-level change in a stack upgrade plan.
+
+    ``action`` is one of ``"add"``, ``"update"``, or ``"delete"``.
+    ``symbolic_name`` identifies the resource within the template.
+    ``detail`` carries human-readable description of what will change.
+    """
+
+    symbolic_name: str
+    kind: str
+    action: str
+    detail: str
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ResourceChange":
+        return cls(
+            symbolic_name=d.get("symbolic_name", ""),
+            kind=d.get("kind", ""),
+            action=d.get("action", ""),
+            detail=d.get("detail", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class StackUpgradePlan:
+    """Preview of what applying a stack upgrade will change.
+
+    ``from_version`` and ``to_version`` are the template semver strings.
+    ``changes`` is the ordered list of resource-level diffs. ``warnings``
+    carries advisory notes (e.g. brief downtime, data migration required).
+    ``estimated_monthly_cost`` is the projected cost after the upgrade.
+    """
+
+    stack_id: str
+    from_version: str
+    to_version: str
+    changes: List[ResourceChange]
+    warnings: List[str] = field(default_factory=list)
+    estimated_monthly_cost: Optional[float] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "StackUpgradePlan":
+        return cls(
+            stack_id=d.get("stack_id", ""),
+            from_version=d.get("from_version", ""),
+            to_version=d.get("to_version", ""),
+            changes=[ResourceChange.from_dict(c) for c in d.get("changes", [])],
+            warnings=d.get("warnings", []),
+            estimated_monthly_cost=d.get("estimated_monthly_cost"),
+            raw=d,
+        )
+
+
+@dataclass
+class StackMigration:
+    """A recorded stack upgrade execution.
+
+    ``status`` is one of ``"pending"``, ``"in_progress"``, ``"completed"``, or
+    ``"failed"``. ``from_version`` and ``to_version`` reflect the template
+    versions involved.
+    """
+
+    id: str
+    stack_id: str
+    from_version: str
+    to_version: str
+    status: str
+    created_at: str
+    updated_at: str
+    completed_at: Optional[str] = None
+    error_message: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "StackMigration":
+        return cls(
+            id=d.get("id", ""),
+            stack_id=d.get("stack_id", ""),
+            from_version=d.get("from_version", ""),
+            to_version=d.get("to_version", ""),
+            status=d.get("status", ""),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            completed_at=d.get("completed_at"),
+            error_message=d.get("error_message"),
+            raw=d,
+        )
+
 
 @dataclass
 class StackTemplate:
@@ -2708,6 +2932,9 @@ class Stack:
     stack in RollingBack and then Failed if any resource cannot be cleaned up.
     ``endpoint_url`` is set once the stack's primary app service is reachable.
     ``estimated_monthly_cost`` reflects the accepted cost at launch time.
+    ``source_template_id`` and ``source_publisher_org_id`` are set when the
+    stack was launched from a marketplace custom template rather than a
+    first-party template.
     """
 
     id: str
@@ -2721,6 +2948,9 @@ class Stack:
     endpoint_url: Optional[str] = None
     estimated_monthly_cost: Optional[float] = None
     organization_id: Optional[str] = None
+    template_id: Optional[str] = None
+    source_template_id: Optional[str] = None
+    source_publisher_org_id: Optional[str] = None
     resources: List[StackResource] = field(default_factory=list)
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
 
@@ -2738,6 +2968,9 @@ class Stack:
             endpoint_url=d.get("endpoint_url"),
             estimated_monthly_cost=d.get("estimated_monthly_cost"),
             organization_id=d.get("organization_id"),
+            template_id=d.get("template_id"),
+            source_template_id=d.get("source_template_id"),
+            source_publisher_org_id=d.get("source_publisher_org_id"),
             resources=[StackResource.from_dict(r) for r in d.get("resources", [])],
             raw=d,
         )

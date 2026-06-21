@@ -141,11 +141,19 @@ from .types import (
     # Stacks
     StackStatus,
     StackResourceKind,
+    StackVisibility,
+    StackPublicationStatus,
     StackTemplate,
     StackCostLineItem,
     StackCostPreview,
     StackResource,
     Stack,
+    StackDescriptor,
+    CustomTemplateRequest,
+    CustomStackTemplate,
+    ResourceChange,
+    StackUpgradePlan,
+    StackMigration,
 )
 from .services import ServicesAPI, AsyncServicesAPI
 from .users import UsersAPI, AsyncUsersAPI
@@ -283,11 +291,19 @@ __all__ = [
     # Stack types
     "StackStatus",
     "StackResourceKind",
+    "StackVisibility",
+    "StackPublicationStatus",
     "StackTemplate",
     "StackCostLineItem",
     "StackCostPreview",
     "StackResource",
     "Stack",
+    "StackDescriptor",
+    "CustomTemplateRequest",
+    "CustomStackTemplate",
+    "ResourceChange",
+    "StackUpgradePlan",
+    "StackMigration",
     # API classes (sync)
     "ServicesAPI",
     "UsersAPI",
