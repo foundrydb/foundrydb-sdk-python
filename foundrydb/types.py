@@ -2557,6 +2557,192 @@ class AttachmentCredentials:
         )
 
 
+# ---- Stack models ----
+
+# Lifecycle status of a stack.
+StackStatus = Literal[
+    "Pending",
+    "Provisioning",
+    "Wiring",
+    "Running",
+    "RollingBack",
+    "Failed",
+    "Deleting",
+    "Deleted",
+]
+
+# Kind of resource provisioned inside a stack.
+StackResourceKind = Literal["database", "files", "inference", "app"]
+
+
+@dataclass
+class StackTemplate:
+    """One entry in the stack template catalog.
+
+    ``name`` is the stable identifier used when launching a stack (e.g.
+    ``"rag-chatbot"``). ``cost_preview`` holds the same shape as
+    ``StackCostPreview`` but may be omitted when the template has no fixed
+    cost estimate.
+    """
+
+    name: str
+    display_name: str
+    description: str
+    version: str
+    cost_preview: Optional[Dict[str, Any]] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "StackTemplate":
+        return cls(
+            name=d.get("name", ""),
+            display_name=d.get("display_name", ""),
+            description=d.get("description", ""),
+            version=d.get("version", ""),
+            cost_preview=d.get("cost_preview"),
+            raw=d,
+        )
+
+
+@dataclass
+class StackCostLineItem:
+    """One component of a stack cost preview."""
+
+    symbolic_name: str
+    kind: str
+    description: str
+    monthly_cost: float
+    is_ceiling: bool
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "StackCostLineItem":
+        return cls(
+            symbolic_name=d.get("symbolic_name", ""),
+            kind=d.get("kind", ""),
+            description=d.get("description", ""),
+            monthly_cost=d.get("monthly_cost", 0.0),
+            is_ceiling=d.get("is_ceiling", False),
+            raw=d,
+        )
+
+
+@dataclass
+class StackCostPreview:
+    """Estimated monthly cost for launching a stack template.
+
+    Show this to the user and pass ``monthly_total`` as
+    ``accepted_monthly_cost`` when calling ``launch_stack``.
+    ``warnings`` carries advisory notes (e.g. cost ceiling caveats).
+    """
+
+    template_name: str
+    currency: str
+    monthly_total: float
+    line_items: List[StackCostLineItem]
+    warnings: List[str] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "StackCostPreview":
+        return cls(
+            template_name=d.get("template_name", ""),
+            currency=d.get("currency", "EUR"),
+            monthly_total=d.get("monthly_total", 0.0),
+            line_items=[StackCostLineItem.from_dict(i) for i in d.get("line_items", [])],
+            warnings=d.get("warnings", []),
+            raw=d,
+        )
+
+
+@dataclass
+class StackResource:
+    """One constituent resource inside a stack.
+
+    ``kind`` is one of ``database``, ``files``, ``inference``, or ``app``.
+    ``service_id`` is set once the resource has been provisioned; ``ref_id``
+    holds opaque provider-level identifiers for non-service resources.
+    ``depends_on`` lists the ``symbolic_name`` values of resources that must
+    be Running before this one is provisioned.
+    """
+
+    id: str
+    stack_id: str
+    symbolic_name: str
+    kind: str
+    status: str
+    sequence: int
+    created_at: str
+    updated_at: str
+    service_id: Optional[str] = None
+    ref_id: Optional[str] = None
+    status_detail: Optional[str] = None
+    depends_on: List[str] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "StackResource":
+        return cls(
+            id=d.get("id", ""),
+            stack_id=d.get("stack_id", ""),
+            symbolic_name=d.get("symbolic_name", ""),
+            kind=d.get("kind", ""),
+            status=d.get("status", ""),
+            sequence=d.get("sequence", 0),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            service_id=d.get("service_id"),
+            ref_id=d.get("ref_id"),
+            status_detail=d.get("status_detail"),
+            depends_on=d.get("depends_on", []),
+            raw=d,
+        )
+
+
+@dataclass
+class Stack:
+    """A vertical-starter stack composed from platform primitives.
+
+    ``status`` progresses from Pending through Provisioning and Wiring to
+    Running once all constituent resources are ready. A rollback leaves the
+    stack in RollingBack and then Failed if any resource cannot be cleaned up.
+    ``endpoint_url`` is set once the stack's primary app service is reachable.
+    ``estimated_monthly_cost`` reflects the accepted cost at launch time.
+    """
+
+    id: str
+    name: str
+    template_name: str
+    template_version: str
+    status: str
+    created_at: str
+    updated_at: str
+    status_detail: Optional[str] = None
+    endpoint_url: Optional[str] = None
+    estimated_monthly_cost: Optional[float] = None
+    organization_id: Optional[str] = None
+    resources: List[StackResource] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Stack":
+        return cls(
+            id=d.get("id", ""),
+            name=d.get("name", ""),
+            template_name=d.get("template_name", ""),
+            template_version=d.get("template_version", ""),
+            status=d.get("status", ""),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            status_detail=d.get("status_detail"),
+            endpoint_url=d.get("endpoint_url"),
+            estimated_monthly_cost=d.get("estimated_monthly_cost"),
+            organization_id=d.get("organization_id"),
+            resources=[StackResource.from_dict(r) for r in d.get("resources", [])],
+            raw=d,
+        )
+
+
 # ---- Error types ----
 
 class FoundryDBError(Exception):

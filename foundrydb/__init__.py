@@ -138,6 +138,14 @@ from .types import (
     AttachmentCatalogEntry,
     AttachmentSummary,
     AttachmentCredentials,
+    # Stacks
+    StackStatus,
+    StackResourceKind,
+    StackTemplate,
+    StackCostLineItem,
+    StackCostPreview,
+    StackResource,
+    Stack,
 )
 from .services import ServicesAPI, AsyncServicesAPI
 from .users import UsersAPI, AsyncUsersAPI
@@ -157,6 +165,7 @@ from .vector_search import VectorSearchAPI, AsyncVectorSearchAPI
 from .ai_actions import AIActionsAPI, AsyncAIActionsAPI
 from .compliance import ComplianceAPI, AsyncComplianceAPI
 from .attachments import AttachmentsAPI, AsyncAttachmentsAPI
+from .stacks import StacksAPI, AsyncStacksAPI
 
 __version__ = "0.5.1"
 __all__ = [
@@ -271,6 +280,14 @@ __all__ = [
     "AttachmentCatalogEntry",
     "AttachmentSummary",
     "AttachmentCredentials",
+    # Stack types
+    "StackStatus",
+    "StackResourceKind",
+    "StackTemplate",
+    "StackCostLineItem",
+    "StackCostPreview",
+    "StackResource",
+    "Stack",
     # API classes (sync)
     "ServicesAPI",
     "UsersAPI",
@@ -290,6 +307,7 @@ __all__ = [
     "AIActionsAPI",
     "ComplianceAPI",
     "AttachmentsAPI",
+    "StacksAPI",
     # API classes (async)
     "AsyncServicesAPI",
     "AsyncUsersAPI",
@@ -309,4 +327,5 @@ __all__ = [
     "AsyncAIActionsAPI",
     "AsyncComplianceAPI",
     "AsyncAttachmentsAPI",
+    "AsyncStacksAPI",
 ]
