@@ -2473,6 +2473,35 @@ class ComplianceSigningKeySet:
         )
 
 
+@dataclass
+class ComplianceSubscription:
+    """One compliance framework subscription for an organization.
+
+    ``subscribed_at`` is set when the subscription was activated.
+    ``canceled_at`` is set if the subscription has been canceled and is
+    otherwise ``None``. ``monthly_price_eur`` is the current monthly price in
+    EUR, expressed as a float (e.g. ``29.0``).
+    """
+
+    framework: str
+    enabled: bool
+    monthly_price_eur: float
+    subscribed_at: Optional[str] = None
+    canceled_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "ComplianceSubscription":
+        return cls(
+            framework=d.get("framework", ""),
+            enabled=d.get("enabled", False),
+            monthly_price_eur=d.get("monthly_price_eur", 0.0),
+            subscribed_at=d.get("subscribed_at"),
+            canceled_at=d.get("canceled_at"),
+            raw=d,
+        )
+
+
 # ---- Companion-app attachment models ----
 
 @dataclass

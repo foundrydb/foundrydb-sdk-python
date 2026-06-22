@@ -134,6 +134,7 @@ from .types import (
     ComplianceReportRecord,
     ComplianceSigningKey,
     ComplianceSigningKeySet,
+    ComplianceSubscription,
     # Attachments
     AttachmentCatalogEntry,
     AttachmentSummary,
@@ -284,6 +285,7 @@ __all__ = [
     "ComplianceReportRecord",
     "ComplianceSigningKey",
     "ComplianceSigningKeySet",
+    "ComplianceSubscription",
     # Attachment types
     "AttachmentCatalogEntry",
     "AttachmentSummary",

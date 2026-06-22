@@ -457,6 +457,47 @@ for key in key_set.keys:
 The `/.well-known/compliance-signing-keys` endpoint is public and does not
 require authentication, allowing offline verification of evidence packets.
 
+### List compliance subscriptions
+
+```python
+subs = client.compliance.list_compliance_subscriptions(org_id="org_abc123")
+for s in subs:
+    print(s.framework, s.enabled, s.monthly_price_eur, s.subscribed_at, s.canceled_at)
+```
+
+Each entry is a `ComplianceSubscription` with fields: `framework`, `enabled`,
+`monthly_price_eur`, `subscribed_at`, `canceled_at`.
+
+### Subscribe to a compliance framework
+
+```python
+sub = client.compliance.subscribe_compliance_framework(
+    org_id="org_abc123",
+    framework="soc2",   # or "gdpr_ropa", "dora", "eu_ai_act"
+)
+print(sub.framework, sub.enabled, sub.subscribed_at)
+```
+
+### Unsubscribe from a compliance framework
+
+```python
+client.compliance.unsubscribe_compliance_framework(
+    org_id="org_abc123",
+    framework="soc2",
+)
+```
+
+### Rotate the compliance signing key (admin only)
+
+```python
+key_set = client.compliance.rotate_compliance_signing_key()
+for key in key_set.keys:
+    print(key.key_id, "active=" + str(key.active), key.retired_at)
+```
+
+Generates a fresh Ed25519 keypair, promotes it to active, and retires the
+previous key. Previously signed packets remain verifiable using the retired key.
+
 ## License
 
 MIT

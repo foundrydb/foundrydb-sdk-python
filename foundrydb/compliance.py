@@ -16,6 +16,7 @@ from .types import (
     CompliancePacketResponse,
     ComplianceReportRecord,
     ComplianceSigningKeySet,
+    ComplianceSubscription,
     GenerateComplianceReportResponse,
 )
 
@@ -133,6 +134,70 @@ class ComplianceAPI:
         data = self._http.get("/.well-known/compliance-signing-keys")
         return ComplianceSigningKeySet.from_dict(data)
 
+    def list_compliance_subscriptions(self, org_id: str) -> List[ComplianceSubscription]:
+        """List compliance framework subscriptions for an organization.
+
+        Returns all subscriptions, including those that have been canceled.
+        Each entry reflects the current billing state of one framework.
+
+        Args:
+            org_id: UUID of the organization.
+        """
+        data = self._http.get(f"/organizations/{org_id}/compliance-subscriptions")
+        return [ComplianceSubscription.from_dict(s) for s in data.get("subscriptions", [])]
+
+    def subscribe_compliance_framework(
+        self,
+        org_id: str,
+        framework: str,
+    ) -> ComplianceSubscription:
+        """Subscribe an organization to a compliance framework.
+
+        Idempotent: re-subscribing an already-active subscription is a no-op
+        and returns the current subscription record.
+
+        Args:
+            org_id: UUID of the organization.
+            framework: Compliance framework identifier. One of ``"soc2"``,
+                ``"gdpr_ropa"``, ``"dora"``, or ``"eu_ai_act"``.
+
+        Returns:
+            The resulting :class:`~foundrydb.types.ComplianceSubscription`.
+        """
+        data = self._http.put(
+            f"/organizations/{org_id}/compliance-subscriptions/{framework}",
+            {},
+        )
+        return ComplianceSubscription.from_dict(data)
+
+    def unsubscribe_compliance_framework(self, org_id: str, framework: str) -> None:
+        """Cancel a compliance framework subscription for an organization.
+
+        The subscription record is retained with its ``canceled_at`` timestamp
+        set. Unsubscribing stops future billing for that framework.
+
+        Args:
+            org_id: UUID of the organization.
+            framework: Compliance framework identifier to cancel.
+        """
+        self._http.delete(
+            f"/organizations/{org_id}/compliance-subscriptions/{framework}",
+        )
+
+    def rotate_compliance_signing_key(self) -> ComplianceSigningKeySet:
+        """Rotate the platform compliance signing key (admin only).
+
+        Generates a new Ed25519 keypair, makes it the active signing key, and
+        retires the previous key. The retired key remains in the key set for
+        offline verification of packets signed before the rotation.
+
+        Returns:
+            The updated :class:`~foundrydb.types.ComplianceSigningKeySet`
+            reflecting the new active key and all retired keys.
+        """
+        data = self._http.post("/admin/compliance/signing-keys/rotate", {})
+        return ComplianceSigningKeySet.from_dict(data)
+
 
 class AsyncComplianceAPI:
     """Compliance evidence packet surface (async)."""
@@ -208,4 +273,59 @@ class AsyncComplianceAPI:
             algorithm and list of public keys.
         """
         data = await self._http.get("/.well-known/compliance-signing-keys")
+        return ComplianceSigningKeySet.from_dict(data)
+
+    async def list_compliance_subscriptions(self, org_id: str) -> List[ComplianceSubscription]:
+        """List compliance framework subscriptions for an organization.
+
+        Args:
+            org_id: UUID of the organization.
+        """
+        data = await self._http.get(f"/organizations/{org_id}/compliance-subscriptions")
+        return [ComplianceSubscription.from_dict(s) for s in data.get("subscriptions", [])]
+
+    async def subscribe_compliance_framework(
+        self,
+        org_id: str,
+        framework: str,
+    ) -> ComplianceSubscription:
+        """Subscribe an organization to a compliance framework.
+
+        Args:
+            org_id: UUID of the organization.
+            framework: Compliance framework identifier. One of ``"soc2"``,
+                ``"gdpr_ropa"``, ``"dora"``, or ``"eu_ai_act"``.
+
+        Returns:
+            The resulting :class:`~foundrydb.types.ComplianceSubscription`.
+        """
+        data = await self._http.put(
+            f"/organizations/{org_id}/compliance-subscriptions/{framework}",
+            {},
+        )
+        return ComplianceSubscription.from_dict(data)
+
+    async def unsubscribe_compliance_framework(self, org_id: str, framework: str) -> None:
+        """Cancel a compliance framework subscription for an organization.
+
+        Args:
+            org_id: UUID of the organization.
+            framework: Compliance framework identifier to cancel.
+        """
+        await self._http.delete(
+            f"/organizations/{org_id}/compliance-subscriptions/{framework}",
+        )
+
+    async def rotate_compliance_signing_key(self) -> ComplianceSigningKeySet:
+        """Rotate the platform compliance signing key (admin only).
+
+        Generates a new Ed25519 keypair, makes it the active signing key, and
+        retires the previous key. The retired key remains in the key set for
+        offline verification of packets signed before the rotation.
+
+        Returns:
+            The updated :class:`~foundrydb.types.ComplianceSigningKeySet`
+            reflecting the new active key and all retired keys.
+        """
+        data = await self._http.post("/admin/compliance/signing-keys/rotate", {})
         return ComplianceSigningKeySet.from_dict(data)
