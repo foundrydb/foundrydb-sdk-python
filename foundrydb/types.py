@@ -817,11 +817,22 @@ EdgeDomainStatus = Literal[
     "deleting",
 ]
 
-# How the edge web application firewall treats matching requests.
-EdgeWAFMode = Literal["off", "detect"]
+# How the edge web application firewall treats matching requests. "block"
+# inspects, logs, and rejects matching requests with a 403 so the malicious
+# request never reaches the origin.
+EdgeWAFMode = Literal["off", "detect", "block"]
 
 # What an edge rate-limit bucket is keyed on.
 EdgeRateLimitKey = Literal["ip", "api_key"]
+
+# Where an inbound API key is read from on a request.
+EdgeAPIKeyLocation = Literal["header", "query"]
+
+# What the bot-management layer does with a request it flags as a bot.
+EdgeBotAction = Literal["log", "block", "challenge"]
+
+# What the account-takeover protection layer does when a threshold trips.
+EdgeATOAction = Literal["alert", "ratelimit", "lock"]
 
 
 @dataclass
@@ -862,20 +873,73 @@ class EdgeDomain:
 
 
 @dataclass
+class EdgeCacheKey:
+    """Selects which request attributes a cached entry varies on. An empty
+    EdgeCacheKey varies on nothing beyond the request path."""
+
+    vary_query_params: Optional[List[str]] = None
+    vary_headers: Optional[List[str]] = None
+    vary_cookies: Optional[List[str]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        if self.vary_query_params:
+            out["vary_query_params"] = list(self.vary_query_params)
+        if self.vary_headers:
+            out["vary_headers"] = list(self.vary_headers)
+        if self.vary_cookies:
+            out["vary_cookies"] = list(self.vary_cookies)
+        return out
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeCacheKey":
+        return cls(
+            vary_query_params=d.get("vary_query_params"),
+            vary_headers=d.get("vary_headers"),
+            vary_cookies=d.get("vary_cookies"),
+        )
+
+
+@dataclass
 class EdgeCacheRule:
-    """Caches responses under one path prefix for a fixed TTL."""
+    """Caches responses under one path prefix for a fixed TTL. The optional
+    stale-while-revalidate and stale-if-error windows let the edge serve a
+    stale entry while it refreshes (or when the origin errors); cache_key
+    narrows what the entry varies on; request_collapsing folds concurrent
+    cache-fill requests for the same key into one origin fetch."""
 
     path_prefix: str
     ttl_seconds: int
+    stale_while_revalidate_seconds: Optional[int] = None
+    stale_if_error_seconds: Optional[int] = None
+    cache_key: Optional["EdgeCacheKey"] = None
+    request_collapsing: Optional[bool] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"path_prefix": self.path_prefix, "ttl_seconds": self.ttl_seconds}
+        out: Dict[str, Any] = {
+            "path_prefix": self.path_prefix,
+            "ttl_seconds": self.ttl_seconds,
+        }
+        if self.stale_while_revalidate_seconds:
+            out["stale_while_revalidate_seconds"] = self.stale_while_revalidate_seconds
+        if self.stale_if_error_seconds:
+            out["stale_if_error_seconds"] = self.stale_if_error_seconds
+        if self.cache_key is not None:
+            out["cache_key"] = self.cache_key.to_dict()
+        if self.request_collapsing:
+            out["request_collapsing"] = self.request_collapsing
+        return out
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "EdgeCacheRule":
+        ck = d.get("cache_key")
         return cls(
             path_prefix=d.get("path_prefix", ""),
             ttl_seconds=d.get("ttl_seconds", 0),
+            stale_while_revalidate_seconds=d.get("stale_while_revalidate_seconds"),
+            stale_if_error_seconds=d.get("stale_if_error_seconds"),
+            cache_key=EdgeCacheKey.from_dict(ck) if ck else None,
+            request_collapsing=d.get("request_collapsing"),
         )
 
 
@@ -900,6 +964,323 @@ class EdgeRateLimit:
             requests_per_second=d.get("requests_per_second", 0),
             burst=d.get("burst", 0),
             key=d.get("key", "ip"),
+        )
+
+
+# ---- Edge access / auth models ----
+
+
+@dataclass
+class EdgeJWTClaim:
+    """One required JWT claim: the claim must be present with the given value."""
+
+    name: str
+    value: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"name": self.name, "value": self.value}
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeJWTClaim":
+        return cls(name=d.get("name", ""), value=d.get("value", ""))
+
+
+@dataclass
+class EdgeJWTAuth:
+    """Validates a bearer JWT at the edge for the matching paths before the
+    request reaches the origin. Carries no secret, so it is echoed verbatim on
+    the settings response."""
+
+    enabled: bool
+    paths: Optional[List[str]] = None
+    jwks_url: Optional[str] = None
+    public_keys: Optional[List[str]] = None
+    issuer: Optional[str] = None
+    audiences: Optional[List[str]] = None
+    required_claims: Optional[List[EdgeJWTClaim]] = None
+    forward_claims_header: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {"enabled": self.enabled}
+        if self.paths:
+            out["paths"] = list(self.paths)
+        if self.jwks_url:
+            out["jwks_url"] = self.jwks_url
+        if self.public_keys:
+            out["public_keys"] = list(self.public_keys)
+        if self.issuer:
+            out["issuer"] = self.issuer
+        if self.audiences:
+            out["audiences"] = list(self.audiences)
+        if self.required_claims:
+            out["required_claims"] = [c.to_dict() for c in self.required_claims]
+        if self.forward_claims_header:
+            out["forward_claims_header"] = self.forward_claims_header
+        return out
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeJWTAuth":
+        claims = d.get("required_claims")
+        return cls(
+            enabled=d.get("enabled", False),
+            paths=d.get("paths"),
+            jwks_url=d.get("jwks_url"),
+            public_keys=d.get("public_keys"),
+            issuer=d.get("issuer"),
+            audiences=d.get("audiences"),
+            required_claims=[EdgeJWTClaim.from_dict(c) for c in claims] if claims else None,
+            forward_claims_header=d.get("forward_claims_header"),
+        )
+
+
+@dataclass
+class EdgeSignedURLs:
+    """Requires a valid signature query parameter on the matching paths. The
+    secret is referenced by name only (never the value); the response carries
+    the identical non-secret shape since no secret is ever stored."""
+
+    enabled: bool
+    paths: Optional[List[str]] = None
+    secret_name: Optional[str] = None
+    ttl_seconds: Optional[int] = None
+    signature_param: Optional[str] = None
+    expires_param: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {"enabled": self.enabled}
+        if self.paths:
+            out["paths"] = list(self.paths)
+        if self.secret_name:
+            out["secret_name"] = self.secret_name
+        if self.ttl_seconds:
+            out["ttl_seconds"] = self.ttl_seconds
+        if self.signature_param:
+            out["signature_param"] = self.signature_param
+        if self.expires_param:
+            out["expires_param"] = self.expires_param
+        return out
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeSignedURLs":
+        return cls(
+            enabled=d.get("enabled", False),
+            paths=d.get("paths"),
+            secret_name=d.get("secret_name"),
+            ttl_seconds=d.get("ttl_seconds"),
+            signature_param=d.get("signature_param"),
+            expires_param=d.get("expires_param"),
+        )
+
+
+@dataclass
+class EdgeAPIKeyRequest:
+    """One inbound API key on the settings request. ``key`` is the PLAINTEXT
+    key value; it is write-only, hashed server-side, and never echoed. An
+    optional per-key rate limit overrides the app-wide limit for this key."""
+
+    name: str
+    key: Optional[str] = None
+    rate_tier: Optional[EdgeRateLimit] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {"name": self.name}
+        if self.key:
+            out["key"] = self.key
+        if self.rate_tier is not None:
+            out["rate_tier"] = self.rate_tier.to_dict()
+        return out
+
+
+@dataclass
+class EdgeAPIKeyAuthRequest:
+    """Inbound API-key authentication on the settings request. Keys carry
+    plaintext key material that the controller hashes and discards; the stored
+    document only ever carries the resulting hashes."""
+
+    enabled: bool
+    paths: Optional[List[str]] = None
+    key_location: Optional[EdgeAPIKeyLocation] = None
+    key_name: Optional[str] = None
+    keys: Optional[List[EdgeAPIKeyRequest]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {"enabled": self.enabled}
+        if self.paths:
+            out["paths"] = list(self.paths)
+        if self.key_location:
+            out["key_location"] = self.key_location
+        if self.key_name:
+            out["key_name"] = self.key_name
+        if self.keys:
+            out["keys"] = [k.to_dict() for k in self.keys]
+        return out
+
+
+@dataclass
+class EdgeAPIKeyView:
+    """One inbound API key as echoed on the settings response: no hash, no
+    plaintext, only the key name and any per-key rate limit."""
+
+    name: str
+    rate_tier: Optional[EdgeRateLimit] = None
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeAPIKeyView":
+        rt = d.get("rate_tier")
+        return cls(
+            name=d.get("name", ""),
+            rate_tier=EdgeRateLimit.from_dict(rt) if rt else None,
+        )
+
+
+@dataclass
+class EdgeAPIKeyAuthView:
+    """Inbound API-key authentication as echoed on the settings response. No
+    key material is ever returned, only the key names."""
+
+    enabled: bool
+    paths: Optional[List[str]] = None
+    key_location: Optional[EdgeAPIKeyLocation] = None
+    key_name: Optional[str] = None
+    keys: Optional[List[EdgeAPIKeyView]] = None
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeAPIKeyAuthView":
+        keys = d.get("keys")
+        return cls(
+            enabled=d.get("enabled", False),
+            paths=d.get("paths"),
+            key_location=d.get("key_location"),
+            key_name=d.get("key_name"),
+            keys=[EdgeAPIKeyView.from_dict(k) for k in keys] if keys else None,
+        )
+
+
+# ---- Edge security hardening models ----
+
+
+@dataclass
+class EdgeWAFExclusion:
+    """Excludes a managed WAF rule (by id) or a request target from WAF
+    inspection. At least one of rule_id or target is set."""
+
+    rule_id: Optional[int] = None
+    target: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        if self.rule_id:
+            out["rule_id"] = self.rule_id
+        if self.target:
+            out["target"] = self.target
+        return out
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeWAFExclusion":
+        return cls(rule_id=d.get("rule_id"), target=d.get("target"))
+
+
+@dataclass
+class EdgeDDoSProfile:
+    """Per-IP volumetric protection at the edge: caps requests-per-second,
+    burst, and concurrent connections per source IP."""
+
+    enabled: bool
+    per_ip_requests_per_second: Optional[int] = None
+    per_ip_burst: Optional[int] = None
+    per_ip_conn_cap: Optional[int] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {"enabled": self.enabled}
+        if self.per_ip_requests_per_second:
+            out["per_ip_requests_per_second"] = self.per_ip_requests_per_second
+        if self.per_ip_burst:
+            out["per_ip_burst"] = self.per_ip_burst
+        if self.per_ip_conn_cap:
+            out["per_ip_conn_cap"] = self.per_ip_conn_cap
+        return out
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeDDoSProfile":
+        return cls(
+            enabled=d.get("enabled", False),
+            per_ip_requests_per_second=d.get("per_ip_requests_per_second"),
+            per_ip_burst=d.get("per_ip_burst"),
+            per_ip_conn_cap=d.get("per_ip_conn_cap"),
+        )
+
+
+@dataclass
+class EdgeBotManagement:
+    """Bot detection at the edge. ``action`` selects what a flagged request
+    gets (log, block, or challenge); the heuristics combine a known-bad-bot
+    list with a rate-based signal."""
+
+    enabled: bool
+    action: Optional[EdgeBotAction] = None
+    known_bad_bots: Optional[bool] = None
+    rate_based_heuristic: Optional[bool] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {"enabled": self.enabled}
+        if self.action:
+            out["action"] = self.action
+        if self.known_bad_bots:
+            out["known_bad_bots"] = self.known_bad_bots
+        if self.rate_based_heuristic:
+            out["rate_based_heuristic"] = self.rate_based_heuristic
+        return out
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeBotManagement":
+        return cls(
+            enabled=d.get("enabled", False),
+            action=d.get("action"),
+            known_bad_bots=d.get("known_bad_bots"),
+            rate_based_heuristic=d.get("rate_based_heuristic"),
+        )
+
+
+@dataclass
+class EdgeATOProtection:
+    """Account-takeover protection: watches authentication paths for repeated
+    failures keyed per source IP and per username, and takes ``action`` when a
+    threshold trips."""
+
+    enabled: bool
+    auth_paths: Optional[List[str]] = None
+    failure_status_codes: Optional[List[int]] = None
+    per_ip_threshold_per_min: Optional[int] = None
+    per_username_threshold_per_min: Optional[int] = None
+    username_field: Optional[str] = None
+    action: Optional[EdgeATOAction] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {"enabled": self.enabled}
+        if self.auth_paths:
+            out["auth_paths"] = list(self.auth_paths)
+        if self.failure_status_codes:
+            out["failure_status_codes"] = list(self.failure_status_codes)
+        if self.per_ip_threshold_per_min:
+            out["per_ip_threshold_per_min"] = self.per_ip_threshold_per_min
+        if self.per_username_threshold_per_min:
+            out["per_username_threshold_per_min"] = self.per_username_threshold_per_min
+        if self.username_field:
+            out["username_field"] = self.username_field
+        if self.action:
+            out["action"] = self.action
+        return out
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeATOProtection":
+        return cls(
+            enabled=d.get("enabled", False),
+            auth_paths=d.get("auth_paths"),
+            failure_status_codes=d.get("failure_status_codes"),
+            per_ip_threshold_per_min=d.get("per_ip_threshold_per_min"),
+            per_username_threshold_per_min=d.get("per_username_threshold_per_min"),
+            username_field=d.get("username_field"),
+            action=d.get("action"),
         )
 
 
@@ -953,12 +1334,25 @@ class EdgeStatus:
 @dataclass
 class EdgeSettings:
     """Customer-tunable edge settings echoed back after an update. Domains
-    and origin are platform-derived and are not included here."""
+    and origin are platform-derived and are not included here. signed_urls and
+    api_key_auth are projected to their non-secret view shapes; jwt_auth is
+    echoed verbatim (it carries no secret). The ``raw`` dict preserves every
+    field returned by the server, including ones not modeled explicitly."""
 
     waf_mode: EdgeWAFMode
     config_version: int
     cache_rules: Optional[List[EdgeCacheRule]] = None
     rate_limit: Optional[EdgeRateLimit] = None
+    # Access / auth (echoed on the response).
+    jwt_auth: Optional[EdgeJWTAuth] = None
+    signed_urls: Optional[EdgeSignedURLs] = None
+    api_key_auth: Optional[EdgeAPIKeyAuthView] = None
+    # Security hardening (echoed on the response).
+    waf_paranoia_level: Optional[int] = None
+    waf_rule_exclusions: Optional[List[EdgeWAFExclusion]] = None
+    ddos_profile: Optional[EdgeDDoSProfile] = None
+    bot_management: Optional[EdgeBotManagement] = None
+    ato_protection: Optional[EdgeATOProtection] = None
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
 
     @classmethod
@@ -967,13 +1361,412 @@ class EdgeSettings:
         rules = [EdgeCacheRule.from_dict(r) for r in rules_data] if rules_data else None
         rl_data = d.get("rate_limit")
         rate_limit = EdgeRateLimit.from_dict(rl_data) if rl_data else None
+        jwt_data = d.get("jwt_auth")
+        signed_data = d.get("signed_urls")
+        apikey_data = d.get("api_key_auth")
+        excl_data = d.get("waf_rule_exclusions")
+        ddos_data = d.get("ddos_profile")
+        bot_data = d.get("bot_management")
+        ato_data = d.get("ato_protection")
         return cls(
             waf_mode=d.get("waf_mode", "off"),
             config_version=d.get("config_version", 0),
             cache_rules=rules,
             rate_limit=rate_limit,
+            jwt_auth=EdgeJWTAuth.from_dict(jwt_data) if jwt_data else None,
+            signed_urls=EdgeSignedURLs.from_dict(signed_data) if signed_data else None,
+            api_key_auth=EdgeAPIKeyAuthView.from_dict(apikey_data) if apikey_data else None,
+            waf_paranoia_level=d.get("waf_paranoia_level"),
+            waf_rule_exclusions=[EdgeWAFExclusion.from_dict(e) for e in excl_data] if excl_data else None,
+            ddos_profile=EdgeDDoSProfile.from_dict(ddos_data) if ddos_data else None,
+            bot_management=EdgeBotManagement.from_dict(bot_data) if bot_data else None,
+            ato_protection=EdgeATOProtection.from_dict(ato_data) if ato_data else None,
             raw=d,
         )
+
+
+# ---- Edge cache purge ----
+
+
+@dataclass
+class EdgeCachePurgeResult:
+    """The rolling purge plan a cache-purge request started. The purge flushes
+    nodes one at a time in the background, so the result reports the plan rather
+    than a completed flush."""
+
+    planned_nodes: int
+    rolling: bool
+    node_ids: List[str] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeCachePurgeResult":
+        return cls(
+            planned_nodes=d.get("planned_nodes", 0),
+            rolling=d.get("rolling", False),
+            node_ids=list(d.get("node_ids") or []),
+            raw=d,
+        )
+
+
+# ---- Edge analytics ----
+
+
+@dataclass
+class EdgeMetricsTopPath:
+    """One (path, count) entry in a top-paths or suspicious-paths list."""
+
+    path: str
+    count: int
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeMetricsTopPath":
+        return cls(path=d.get("path", ""), count=d.get("count", 0))
+
+
+@dataclass
+class EdgeStatusClassCounts:
+    """Request total broken down by HTTP status class."""
+
+    c2xx: int = 0
+    c3xx: int = 0
+    c4xx: int = 0
+    c5xx: int = 0
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeStatusClassCounts":
+        return cls(
+            c2xx=d.get("2xx", 0),
+            c3xx=d.get("3xx", 0),
+            c4xx=d.get("4xx", 0),
+            c5xx=d.get("5xx", 0),
+        )
+
+
+@dataclass
+class EdgeCacheCounts:
+    """Cache hit/miss summary with the derived hit ratio."""
+
+    hit: int = 0
+    miss: int = 0
+    hit_ratio: float = 0.0
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeCacheCounts":
+        return cls(
+            hit=d.get("hit", 0),
+            miss=d.get("miss", 0),
+            hit_ratio=d.get("hit_ratio", 0.0),
+        )
+
+
+@dataclass
+class EdgeLatencyPercentiles:
+    """Latency percentiles (milliseconds) from the request latency histogram."""
+
+    p50: float = 0.0
+    p95: float = 0.0
+    p99: float = 0.0
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeLatencyPercentiles":
+        return cls(p50=d.get("p50", 0.0), p95=d.get("p95", 0.0), p99=d.get("p99", 0.0))
+
+
+@dataclass
+class EdgeAnalyticsThreat:
+    """Per-scope security/threat summary: the WAF detection total plus the
+    observed top paths matching credential-scanner shapes."""
+
+    waf_detections_total: int = 0
+    suspicious_paths: List[EdgeMetricsTopPath] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeAnalyticsThreat":
+        sp = d.get("suspicious_paths") or []
+        return cls(
+            waf_detections_total=d.get("waf_detections_total", 0),
+            suspicious_paths=[EdgeMetricsTopPath.from_dict(p) for p in sp],
+        )
+
+
+@dataclass
+class EdgeAnalyticsSummary:
+    """Folded edge analytics for one scope (the app total or one PoP). zone is
+    empty for the app-wide total."""
+
+    requests_total: int = 0
+    error_rate_pct: float = 0.0
+    rate_limited_total: int = 0
+    waf_detections_total: int = 0
+    zone: str = ""
+    by_status_class: EdgeStatusClassCounts = field(default_factory=EdgeStatusClassCounts)
+    cache: EdgeCacheCounts = field(default_factory=EdgeCacheCounts)
+    latency_ms: EdgeLatencyPercentiles = field(default_factory=EdgeLatencyPercentiles)
+    waf_by_rule: Dict[str, int] = field(default_factory=dict)
+    top_paths: List[EdgeMetricsTopPath] = field(default_factory=list)
+    threat: EdgeAnalyticsThreat = field(default_factory=EdgeAnalyticsThreat)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeAnalyticsSummary":
+        tp = d.get("top_paths") or []
+        return cls(
+            requests_total=d.get("requests_total", 0),
+            error_rate_pct=d.get("error_rate_pct", 0.0),
+            rate_limited_total=d.get("rate_limited_total", 0),
+            waf_detections_total=d.get("waf_detections_total", 0),
+            zone=d.get("zone", ""),
+            by_status_class=EdgeStatusClassCounts.from_dict(d.get("by_status_class") or {}),
+            cache=EdgeCacheCounts.from_dict(d.get("cache") or {}),
+            latency_ms=EdgeLatencyPercentiles.from_dict(d.get("latency_ms") or {}),
+            waf_by_rule=dict(d.get("waf_by_rule") or {}),
+            top_paths=[EdgeMetricsTopPath.from_dict(p) for p in tp],
+            threat=EdgeAnalyticsThreat.from_dict(d.get("threat") or {}),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeAnalytics:
+    """Account-scoped, server-aggregated edge analytics for one app over a
+    window, folded across the app's PoPs with a per-PoP breakdown."""
+
+    window_minutes: int
+    total: EdgeAnalyticsSummary
+    pops: List[EdgeAnalyticsSummary] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeAnalytics":
+        pops = d.get("pops") or []
+        return cls(
+            window_minutes=d.get("window_minutes", 0),
+            total=EdgeAnalyticsSummary.from_dict(d.get("total") or {}),
+            pops=[EdgeAnalyticsSummary.from_dict(p) for p in pops],
+            raw=d,
+        )
+
+
+# ---- Edge config version history / rollback ----
+
+
+@dataclass
+class EdgeConfigVersion:
+    """One entry in the append-only edge config version history."""
+
+    version: int
+    config_hash: str
+    source: str
+    created_at: str
+    active: bool = False
+    created_by: Optional[str] = None
+    rolled_back_from: Optional[int] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeConfigVersion":
+        return cls(
+            version=d.get("version", 0),
+            config_hash=d.get("config_hash", ""),
+            source=d.get("source", ""),
+            created_at=d.get("created_at", ""),
+            active=d.get("active", False),
+            created_by=d.get("created_by"),
+            rolled_back_from=d.get("rolled_back_from"),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeConfigVersions:
+    """The app's edge config version history (newest first, bounded) and the
+    live active version."""
+
+    active_version: int
+    versions: List[EdgeConfigVersion] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeConfigVersions":
+        vs = d.get("versions") or []
+        return cls(
+            active_version=d.get("active_version", 0),
+            versions=[EdgeConfigVersion.from_dict(v) for v in vs],
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeRollbackResult:
+    """The new active version a rollback produced. The rollback writes a NEW
+    forward version restoring the target's customer-settable subset; it never
+    mutates the history."""
+
+    active_version: int
+    rolled_back_from: int
+    source: str
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeRollbackResult":
+        return cls(
+            active_version=d.get("active_version", 0),
+            rolled_back_from=d.get("rolled_back_from", 0),
+            source=d.get("source", ""),
+            raw=d,
+        )
+
+
+# ---- Edge staged config rollouts ----
+
+
+@dataclass
+class EdgeRollout:
+    """One staged edge config rollout. A rollout stages a new config version to
+    a canary subset (one node, or one PoP) first, then either promotes it to the
+    rest of the fleet or aborts."""
+
+    id: str
+    target_version: int
+    phase: str
+    canary_scope: str
+    started_at: str
+    updated_at: str
+    canary_selector: str = ""
+    promoted_at: Optional[str] = None
+    aborted_at: Optional[str] = None
+    abort_reason: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeRollout":
+        return cls(
+            id=d.get("id", ""),
+            target_version=d.get("target_version", 0),
+            phase=d.get("phase", ""),
+            canary_scope=d.get("canary_scope", ""),
+            started_at=d.get("started_at", ""),
+            updated_at=d.get("updated_at", ""),
+            canary_selector=d.get("canary_selector", ""),
+            promoted_at=d.get("promoted_at"),
+            aborted_at=d.get("aborted_at"),
+            abort_reason=d.get("abort_reason"),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeRolloutStatus:
+    """The app's current (or most recent) staged config rollout. active is True
+    when the rollout is in a non-terminal phase (canary or promoting); rollout is
+    None when the app has never had a rollout."""
+
+    active: bool
+    rollout: Optional[EdgeRollout] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeRolloutStatus":
+        r = d.get("rollout")
+        return cls(
+            active=d.get("active", False),
+            rollout=EdgeRollout.from_dict(r) if r else None,
+            raw=d,
+        )
+
+
+# ---- Edge access-log drains ----
+
+# How a log drain transforms the client IP before a line leaves the platform.
+EdgeIPRedactionMode = Literal["full", "truncated", "hashed", "omitted"]
+
+
+@dataclass
+class EdgeRedactionPolicy:
+    """Per-drain privacy policy applied to every access log line before export.
+    Authorization and Cookie are always dropped regardless of header_allow_list."""
+
+    ip_mode: Optional[EdgeIPRedactionMode] = None
+    ip_hash_salt: Optional[str] = None
+    strip_query_string: Optional[bool] = None
+    header_allow_list: Optional[List[str]] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    def to_dict(self) -> Dict[str, Any]:
+        out: Dict[str, Any] = {}
+        if self.ip_mode:
+            out["ip_mode"] = self.ip_mode
+        if self.ip_hash_salt:
+            out["ip_hash_salt"] = self.ip_hash_salt
+        if self.strip_query_string is not None:
+            out["strip_query_string"] = self.strip_query_string
+        if self.header_allow_list:
+            out["header_allow_list"] = list(self.header_allow_list)
+        return out
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeRedactionPolicy":
+        return cls(
+            ip_mode=d.get("ip_mode"),
+            ip_hash_salt=d.get("ip_hash_salt"),
+            strip_query_string=d.get("strip_query_string"),
+            header_allow_list=d.get("header_allow_list"),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeLogDrain:
+    """Streams an app's per-request edge access logs to a customer destination.
+    The destination configuration is write-only and never returned."""
+
+    id: str
+    app_service_id: str
+    name: str
+    destination_type: str
+    is_enabled: bool
+    created_at: str
+    updated_at: str
+    description: str = ""
+    export_interval_seconds: int = 0
+    consecutive_failures: int = 0
+    last_export_error: str = ""
+    last_export_at: Optional[str] = None
+    redaction_policy: EdgeRedactionPolicy = field(default_factory=EdgeRedactionPolicy)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeLogDrain":
+        return cls(
+            id=d.get("id", ""),
+            app_service_id=d.get("app_service_id", ""),
+            name=d.get("name", ""),
+            destination_type=d.get("destination_type", ""),
+            is_enabled=d.get("is_enabled", False),
+            created_at=d.get("created_at", ""),
+            updated_at=d.get("updated_at", ""),
+            description=d.get("description", ""),
+            export_interval_seconds=d.get("export_interval_seconds", 0),
+            consecutive_failures=d.get("consecutive_failures", 0),
+            last_export_error=d.get("last_export_error", ""),
+            last_export_at=d.get("last_export_at"),
+            redaction_policy=EdgeRedactionPolicy.from_dict(d.get("redaction_policy") or {}),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeLogDrainTestResult:
+    """Whether a drain's destination is reachable."""
+
+    ok: bool
+    error: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeLogDrainTestResult":
+        return cls(ok=d.get("ok", False), error=d.get("error", ""), raw=d)
 
 
 # ---- App jobs models ----
