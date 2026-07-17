@@ -131,6 +131,7 @@ from .types import (
     OrgInferenceSettings,
     InferenceUsageRow,
     InferenceUsageSummary,
+    InferenceModelAdapter,
     # Webhooks / Events
     WebhookEndpoint,
     WebhookDelivery,
@@ -202,6 +203,7 @@ from .app_jobs import AppJobsAPI, AsyncAppJobsAPI
 from .queues import QueuesAPI, AsyncQueuesAPI
 from .file_services import FileServicesAPI, AsyncFileServicesAPI
 from .inference import InferenceAPI, AsyncInferenceAPI
+from .inference_services import InferenceServicesAPI, AsyncInferenceServicesAPI
 from .webhooks import WebhooksAPI, AsyncWebhooksAPI
 from .data_pipelines import DataPipelinesAPI, AsyncDataPipelinesAPI
 from .embedding_pipelines import EmbeddingPipelinesAPI, AsyncEmbeddingPipelinesAPI
@@ -317,6 +319,7 @@ __all__ = [
     "OrgInferenceSettings",
     "InferenceUsageRow",
     "InferenceUsageSummary",
+    "InferenceModelAdapter",
     # Webhook / Event types
     "WebhookEndpoint",
     "WebhookDelivery",
@@ -388,6 +391,7 @@ __all__ = [
     "QueuesAPI",
     "FileServicesAPI",
     "InferenceAPI",
+    "InferenceServicesAPI",
     "WebhooksAPI",
     "DataPipelinesAPI",
     "EmbeddingPipelinesAPI",
@@ -408,6 +412,7 @@ __all__ = [
     "AsyncQueuesAPI",
     "AsyncFileServicesAPI",
     "AsyncInferenceAPI",
+    "AsyncInferenceServicesAPI",
     "AsyncWebhooksAPI",
     "AsyncDataPipelinesAPI",
     "AsyncEmbeddingPipelinesAPI",

@@ -286,6 +286,42 @@ print(settings.config_version)   # version the fleet will converge on
 
 `EdgeDomainStatus` values: `pending_verification`, `verifying`, `issuing_certificate`, `propagating`, `active`, `failed`, `deleting`.
 
+### Managed Inference Adapters
+
+Manage the customer LoRA fine-tuned adapter registry for a managed inference service (an open-weight LLM served by vLLM on a dedicated GPU). Register an uploaded adapter version, then promote it to hot-load it into vLLM with no restart. Methods live on `client.inference_services`.
+
+```python
+# 1. After uploading the adapter artifact (adapter_model.safetensors +
+#    adapter_config.json) to the org's Files bucket, register the version.
+adapter = client.inference_services.register_adapter(
+    base_model_id="mistral-small",
+    served_model_name="support-bot",
+    version=3,
+    files_bucket="org-1-adapters",
+    files_key_prefix="support-bot/v3",
+    adapter_sha256="3b1e...",  # 64-char lowercase hex sha256
+    size_bytes=104857600,
+    base_model_license="apache-2.0",
+)
+print(adapter.status)  # "uploaded" — not yet on a GPU
+
+# 2. List the versions relevant to a service: the ones bound to it (active +
+#    superseded history) plus the org's uploaded, not-yet-promoted versions
+#    trained on the service's base model.
+for a in client.inference_services.list_adapters(service_id):
+    print(a.served_model_name, a.version, a.status)
+
+# 3. Promote a version onto the serving GPU. It becomes "active" and any
+#    previously active version is marked "superseded".
+active = client.inference_services.promote_adapter(service_id, adapter.id)
+print(active.status, active.promoted_at)  # "active", <timestamp>
+
+# Rollback is the same call on a prior (superseded) version — no separate route.
+client.inference_services.promote_adapter(service_id, previous_adapter_id)
+```
+
+Once active, the service answers to the adapter as `foundrydb_managed/<served_model_name>` on its OpenAI-compatible endpoint.
+
 ## Async Client
 
 All methods have async equivalents. Use `AsyncFoundryDB` as an async context manager:

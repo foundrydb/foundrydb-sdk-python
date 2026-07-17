@@ -2423,6 +2423,63 @@ class InferenceUsageSummary:
         )
 
 
+@dataclass
+class InferenceModelAdapter:
+    """One version of a customer LoRA fine-tuned adapter in the serving registry.
+
+    The adapter is trained on the organization's data and its weights stored in
+    Files (object storage); promoting it downloads the weights onto the
+    base-model GPU, verifies their hash, and hot-loads them into vLLM. Once
+    active, the service answers to the adapter as
+    ``foundrydb_managed/<served_model_name>`` on the OpenAI-compatible endpoint.
+    An adapter never leaves its owning organization's boundary.
+
+    ``status`` is one of ``uploaded`` (weights in Files, not yet on a GPU),
+    ``active`` (loaded and serving), ``superseded`` (replaced by a newer
+    promoted version, re-promotable for rollback), or ``archived`` (retired).
+    ``inference_service_id`` is ``None`` while the row is only uploaded and not
+    yet promoted.
+    """
+
+    id: str
+    organization_id: str
+    base_model_id: str
+    served_model_name: str
+    version: int
+    files_bucket: str
+    files_key_prefix: str
+    adapter_sha256: str
+    size_bytes: int
+    status: str
+    created_at: str
+    inference_service_id: Optional[str] = None
+    base_model_license: Optional[str] = None
+    promoted_at: Optional[str] = None
+    deleted_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "InferenceModelAdapter":
+        return cls(
+            id=d.get("id", ""),
+            organization_id=d.get("organization_id", ""),
+            base_model_id=d.get("base_model_id", ""),
+            served_model_name=d.get("served_model_name", ""),
+            version=d.get("version", 0),
+            files_bucket=d.get("files_bucket", ""),
+            files_key_prefix=d.get("files_key_prefix", ""),
+            adapter_sha256=d.get("adapter_sha256", ""),
+            size_bytes=d.get("size_bytes", 0),
+            status=d.get("status", ""),
+            created_at=d.get("created_at", ""),
+            inference_service_id=d.get("inference_service_id"),
+            base_model_license=d.get("base_model_license"),
+            promoted_at=d.get("promoted_at"),
+            deleted_at=d.get("deleted_at"),
+            raw=d,
+        )
+
+
 # ---- Webhook and event models ----
 
 @dataclass
