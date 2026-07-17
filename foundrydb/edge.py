@@ -37,6 +37,11 @@ from .types import (
     EdgeSignedURLs,
     EdgeStatus,
     EdgeWAFExclusion,
+    EdgeNode,
+    EdgeRollStatus,
+    EdgeOverview,
+    EdgeRecovery,
+    EdgeRoutes,
 )
 
 
@@ -341,6 +346,88 @@ class EdgeAPI:
         if reason:
             body["reason"] = reason
         self._http.post(f"/app-services/{app_service_id}/edge/rollout/abort", body)
+
+    # ---- Edge fleet administration (admin only) ----
+
+    def list_nodes(self) -> List[EdgeNode]:
+        """Return the live edge fleet (admin only)."""
+        data = self._http.get("/admin/edge/nodes")
+        return [EdgeNode.from_dict(n) for n in (data.get("nodes") or [])]
+
+    def create_node(
+        self,
+        zone: str,
+        *,
+        plan_name: Optional[str] = None,
+        node_count: Optional[int] = None,
+    ) -> EdgeNode:
+        """Provision a new edge PoP in the requested zone (admin only). The edge
+        state machine drives it from Pending to Running; poll :meth:`list_nodes`
+        for status. ``node_count`` optionally widens the PoP beyond the default
+        primary-plus-standby pair; values below the default are raised to it."""
+        body: Dict[str, Any] = {"zone": zone}
+        if plan_name:
+            body["plan_name"] = plan_name
+        if node_count is not None:
+            body["node_count"] = node_count
+        data = self._http.post("/admin/edge/nodes", body)
+        return EdgeNode.from_dict(data)
+
+    def scale_node(self, node_id: str, node_count: int) -> None:
+        """Set an edge PoP's desired VM count (admin only), backfilling standbys
+        to scale up or retiring the newest standbys (never the primary) to scale
+        down. ``node_count`` must be at least 1; 2 or more keeps the PoP highly
+        available. The PoP must be Running; the change converges asynchronously."""
+        self._http.patch(f"/admin/edge/nodes/{node_id}", {"node_count": node_count})
+
+    def delete_node(self, node_id: str) -> None:
+        """Queue an edge PoP for deletion through the standard deletion states
+        (admin only). The node is removed asynchronously."""
+        self._http.delete(f"/admin/edge/nodes/{node_id}")
+
+    def start_roll(self, node_id: str) -> EdgeRollStatus:
+        """Begin a graceful, one-node-at-a-time roll of an edge PoP onto the
+        current active base template (admin only). The PoP keeps serving
+        throughout. It is idempotent: if a roll is already in progress it returns
+        the current status instead of starting a second one."""
+        data = self._http.post(f"/admin/edge/nodes/{node_id}/roll")
+        return EdgeRollStatus.from_dict(data)
+
+    def get_roll(self, node_id: str) -> EdgeRollStatus:
+        """Report an edge PoP's current roll progress (admin only)."""
+        data = self._http.get(f"/admin/edge/nodes/{node_id}/roll")
+        return EdgeRollStatus.from_dict(data)
+
+    def cancel_roll(self, node_id: str) -> None:
+        """Clear an edge PoP's roll marker so the reconciler stops retiring
+        further nodes (admin only). Any in-flight replacement completes
+        normally."""
+        self._http.delete(f"/admin/edge/nodes/{node_id}/roll")
+
+    def get_overview(self) -> EdgeOverview:
+        """Return the consolidated read-only edge fleet snapshot (admin only):
+        the autoscale policy plus one row per PoP with its node roster, serving
+        floating IP, node deficit, in-flight recovery status, and load."""
+        data = self._http.get("/admin/edge/overview")
+        return EdgeOverview.from_dict(data)
+
+    def get_recovery(self) -> EdgeRecovery:
+        """Return a snapshot of the shared HA recovery telemetry (admin only):
+        recovery attempts, errors, and average duration per service kind; the
+        failed-node reconciler loop counters; and the per-service node deficit."""
+        data = self._http.get("/admin/edge/recovery")
+        return EdgeRecovery.from_dict(data)
+
+    def get_routes(self, *, window_minutes: int = 0) -> EdgeRoutes:
+        """Return the live edge routing topology (admin only): the apps routed
+        through the edge and their measured per-PoP request rate. Pass
+        ``window_minutes`` to set the aggregation window (0 uses the server
+        default of 5 minutes; values above 1440 are clamped server-side)."""
+        path = "/admin/edge/routes"
+        if window_minutes > 0:
+            path += f"?window_minutes={window_minutes}"
+        data = self._http.get(path)
+        return EdgeRoutes.from_dict(data)
 
     # ---- Access-log drains ----
 
@@ -649,3 +736,85 @@ class AsyncEdgeAPI:
             f"/app-services/{app_service_id}/edge/log-drains/{drain_id}/test"
         )
         return EdgeLogDrainTestResult.from_dict(data)
+
+    # ---- Edge fleet administration (admin only) ----
+
+    async def list_nodes(self) -> List[EdgeNode]:
+        """Return the live edge fleet (admin only)."""
+        data = await self._http.get("/admin/edge/nodes")
+        return [EdgeNode.from_dict(n) for n in (data.get("nodes") or [])]
+
+    async def create_node(
+        self,
+        zone: str,
+        *,
+        plan_name: Optional[str] = None,
+        node_count: Optional[int] = None,
+    ) -> EdgeNode:
+        """Provision a new edge PoP in the requested zone (admin only). The edge
+        state machine drives it from Pending to Running; poll :meth:`list_nodes`
+        for status. ``node_count`` optionally widens the PoP beyond the default
+        primary-plus-standby pair; values below the default are raised to it."""
+        body: Dict[str, Any] = {"zone": zone}
+        if plan_name:
+            body["plan_name"] = plan_name
+        if node_count is not None:
+            body["node_count"] = node_count
+        data = await self._http.post("/admin/edge/nodes", body)
+        return EdgeNode.from_dict(data)
+
+    async def scale_node(self, node_id: str, node_count: int) -> None:
+        """Set an edge PoP's desired VM count (admin only), backfilling standbys
+        to scale up or retiring the newest standbys (never the primary) to scale
+        down. ``node_count`` must be at least 1; 2 or more keeps the PoP highly
+        available. The PoP must be Running; the change converges asynchronously."""
+        await self._http.patch(f"/admin/edge/nodes/{node_id}", {"node_count": node_count})
+
+    async def delete_node(self, node_id: str) -> None:
+        """Queue an edge PoP for deletion through the standard deletion states
+        (admin only). The node is removed asynchronously."""
+        await self._http.delete(f"/admin/edge/nodes/{node_id}")
+
+    async def start_roll(self, node_id: str) -> EdgeRollStatus:
+        """Begin a graceful, one-node-at-a-time roll of an edge PoP onto the
+        current active base template (admin only). The PoP keeps serving
+        throughout. It is idempotent: if a roll is already in progress it returns
+        the current status instead of starting a second one."""
+        data = await self._http.post(f"/admin/edge/nodes/{node_id}/roll")
+        return EdgeRollStatus.from_dict(data)
+
+    async def get_roll(self, node_id: str) -> EdgeRollStatus:
+        """Report an edge PoP's current roll progress (admin only)."""
+        data = await self._http.get(f"/admin/edge/nodes/{node_id}/roll")
+        return EdgeRollStatus.from_dict(data)
+
+    async def cancel_roll(self, node_id: str) -> None:
+        """Clear an edge PoP's roll marker so the reconciler stops retiring
+        further nodes (admin only). Any in-flight replacement completes
+        normally."""
+        await self._http.delete(f"/admin/edge/nodes/{node_id}/roll")
+
+    async def get_overview(self) -> EdgeOverview:
+        """Return the consolidated read-only edge fleet snapshot (admin only):
+        the autoscale policy plus one row per PoP with its node roster, serving
+        floating IP, node deficit, in-flight recovery status, and load."""
+        data = await self._http.get("/admin/edge/overview")
+        return EdgeOverview.from_dict(data)
+
+    async def get_recovery(self) -> EdgeRecovery:
+        """Return a snapshot of the shared HA recovery telemetry (admin only):
+        recovery attempts, errors, and average duration per service kind; the
+        failed-node reconciler loop counters; and the per-service node deficit."""
+        data = await self._http.get("/admin/edge/recovery")
+        return EdgeRecovery.from_dict(data)
+
+    async def get_routes(self, *, window_minutes: int = 0) -> EdgeRoutes:
+        """Return the live edge routing topology (admin only): the apps routed
+        through the edge and their measured per-PoP request rate. Pass
+        ``window_minutes`` to set the aggregation window (0 uses the server
+        default of 5 minutes; values above 1440 are clamped server-side)."""
+        path = "/admin/edge/routes"
+        if window_minutes > 0:
+            path += f"?window_minutes={window_minutes}"
+        data = await self._http.get(path)
+        return EdgeRoutes.from_dict(data)

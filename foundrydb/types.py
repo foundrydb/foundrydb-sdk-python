@@ -1676,6 +1676,346 @@ class EdgeRolloutStatus:
         )
 
 
+# ---- Edge fleet administration (admin only) ----
+#
+# The platform-owned edge gateway PoPs (points of presence) are created, scaled,
+# rolled, and retired only through the admin endpoints under /admin/edge. A PoP
+# is one edge service with node_count >= 2 (a primary that holds the serving
+# floating IP plus one or more hot standbys), giving in-house intra-PoP high
+# availability via floating-IP handoff on failure.
+
+
+@dataclass
+class EdgeNode:
+    """The admin-facing shape of one edge PoP. node_count and target_node_count
+    expose the PoP's primary-plus-standby sizing for HA."""
+
+    id: str
+    name: str
+    zone: str
+    plan_name: str
+    status: str
+    node_count: int = 0
+    target_node_count: int = 0
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeNode":
+        return cls(
+            id=d.get("id", ""),
+            name=d.get("name", ""),
+            zone=d.get("zone", ""),
+            plan_name=d.get("plan_name", ""),
+            status=d.get("status", ""),
+            node_count=d.get("node_count", 0),
+            target_node_count=d.get("target_node_count", 0),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeRollStatus:
+    """An edge PoP's image-roll progress. in_progress is True while any node
+    still predates the roll request."""
+
+    in_progress: bool
+    target_nodes: int = 0
+    running_nodes: int = 0
+    remaining_old_nodes: int = 0
+    replaced_nodes: int = 0
+    requested_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeRollStatus":
+        return cls(
+            in_progress=d.get("in_progress", False),
+            target_nodes=d.get("target_nodes", 0),
+            running_nodes=d.get("running_nodes", 0),
+            remaining_old_nodes=d.get("remaining_old_nodes", 0),
+            replaced_nodes=d.get("replaced_nodes", 0),
+            requested_at=d.get("requested_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeAutoscaleConfig:
+    """The static edge autoscale policy (display only). None of these values
+    feeds a live scaling decision from the overview endpoint."""
+
+    enabled: bool = False
+    max_nodes: int = 0
+    scale_up_rps: float = 0.0
+    scale_down_rps: float = 0.0
+    cooldown_seconds: int = 0
+    lookback_seconds: int = 0
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeAutoscaleConfig":
+        return cls(
+            enabled=d.get("enabled", False),
+            max_nodes=d.get("max_nodes", 0),
+            scale_up_rps=d.get("scale_up_rps", 0.0),
+            scale_down_rps=d.get("scale_down_rps", 0.0),
+            cooldown_seconds=d.get("cooldown_seconds", 0),
+            lookback_seconds=d.get("lookback_seconds", 0),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeAutoscaleState:
+    """Per-PoP autoscale telemetry for display; it never influences scaling."""
+
+    current_rps: float = 0.0
+    per_node_rps: float = 0.0
+    last_decision: str = ""
+    cooldown_remaining_seconds: int = 0
+    last_action_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeAutoscaleState":
+        return cls(
+            current_rps=d.get("current_rps", 0.0),
+            per_node_rps=d.get("per_node_rps", 0.0),
+            last_decision=d.get("last_decision", ""),
+            cooldown_remaining_seconds=d.get("cooldown_remaining_seconds", 0),
+            last_action_at=d.get("last_action_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeOverviewNode:
+    """One VM in an edge PoP. is_serving marks the node currently holding the
+    serving floating IP."""
+
+    id: str
+    name: str
+    role: str
+    status: str
+    is_serving: bool = False
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeOverviewNode":
+        return cls(
+            id=d.get("id", ""),
+            name=d.get("name", ""),
+            role=d.get("role", ""),
+            status=d.get("status", ""),
+            is_serving=d.get("is_serving", False),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeRecoveryStatus:
+    """An in-flight HA auto-recovery cycle for a PoP (self-heal replacement,
+    failover, scale-out). Present on an overview row only while recovery is
+    active."""
+
+    in_progress: bool
+    phase: str = ""
+    started_at: Optional[str] = None
+    estimated_eta: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeRecoveryStatus":
+        return cls(
+            in_progress=d.get("in_progress", False),
+            phase=d.get("phase", ""),
+            started_at=d.get("started_at"),
+            estimated_eta=d.get("estimated_eta"),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeOverviewPoP:
+    """One PoP row of the edge overview: its node roster, serving floating IP,
+    node deficit, in-flight recovery status, and current load."""
+
+    id: str
+    name: str
+    zone: str
+    plan_name: str
+    status: str
+    node_count: int = 0
+    target_node_count: int = 0
+    deficit: int = 0
+    serving_fip: Optional[str] = None
+    recovery: Optional[EdgeRecoveryStatus] = None
+    nodes: List[EdgeOverviewNode] = field(default_factory=list)
+    autoscale_state: Optional[EdgeAutoscaleState] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeOverviewPoP":
+        rec = d.get("recovery")
+        auto = d.get("autoscale_state")
+        return cls(
+            id=d.get("id", ""),
+            name=d.get("name", ""),
+            zone=d.get("zone", ""),
+            plan_name=d.get("plan_name", ""),
+            status=d.get("status", ""),
+            node_count=d.get("node_count", 0),
+            target_node_count=d.get("target_node_count", 0),
+            deficit=d.get("deficit", 0),
+            serving_fip=d.get("serving_fip"),
+            recovery=EdgeRecoveryStatus.from_dict(rec) if rec else None,
+            nodes=[EdgeOverviewNode.from_dict(n) for n in (d.get("nodes") or [])],
+            autoscale_state=EdgeAutoscaleState.from_dict(auto) if auto else None,
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeOverview:
+    """The consolidated, read-only snapshot of the edge fleet for the admin
+    console: the static autoscale policy plus one row per PoP."""
+
+    autoscale: EdgeAutoscaleConfig
+    pops: List[EdgeOverviewPoP] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeOverview":
+        return cls(
+            autoscale=EdgeAutoscaleConfig.from_dict(d.get("autoscale") or {}),
+            pops=[EdgeOverviewPoP.from_dict(p) for p in (d.get("pops") or [])],
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeRecoveryByKind:
+    """Aggregated HA recovery activity for one service kind."""
+
+    service_kind: str
+    attempts: int = 0
+    errors: int = 0
+    avg_duration_seconds: float = 0.0
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeRecoveryByKind":
+        return cls(
+            service_kind=d.get("service_kind", ""),
+            attempts=d.get("attempts", 0),
+            errors=d.get("errors", 0),
+            avg_duration_seconds=d.get("avg_duration_seconds", 0.0),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeRecoveryDeficit:
+    """One service's current node deficit."""
+
+    service_id: str
+    deficit: float = 0.0
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeRecoveryDeficit":
+        return cls(
+            service_id=d.get("service_id", ""),
+            deficit=d.get("deficit", 0.0),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeReconcilerTicks:
+    """The failed-node reconciler loop counters."""
+
+    scanned: int = 0
+    candidates_found: int = 0
+    query_failed: int = 0
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeReconcilerTicks":
+        return cls(
+            scanned=d.get("scanned", 0),
+            candidates_found=d.get("candidates_found", 0),
+            query_failed=d.get("query_failed", 0),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeRecovery:
+    """A snapshot of the shared HA recovery telemetry read from the in-process
+    metrics gatherer: recovery attempts, errors, and average duration per
+    service kind; the failed-node reconciler loop counters; and the per-service
+    node deficit."""
+
+    by_kind: List[EdgeRecoveryByKind] = field(default_factory=list)
+    deficit_by_service: List[EdgeRecoveryDeficit] = field(default_factory=list)
+    reconciler_ticks: EdgeReconcilerTicks = field(default_factory=EdgeReconcilerTicks)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeRecovery":
+        return cls(
+            by_kind=[EdgeRecoveryByKind.from_dict(k) for k in (d.get("by_kind") or [])],
+            deficit_by_service=[
+                EdgeRecoveryDeficit.from_dict(x) for x in (d.get("deficit_by_service") or [])
+            ],
+            reconciler_ticks=EdgeReconcilerTicks.from_dict(d.get("reconciler_ticks") or {}),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeRouteApp:
+    """One app routed through the edge, with the PoP zone it is served from and
+    its measured request rate over the window."""
+
+    service_id: str
+    name: str
+    status: str
+    zone: str
+    requests_per_sec: float = 0.0
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeRouteApp":
+        return cls(
+            service_id=d.get("service_id", ""),
+            name=d.get("name", ""),
+            status=d.get("status", ""),
+            zone=d.get("zone", ""),
+            requests_per_sec=d.get("requests_per_sec", 0.0),
+            raw=d,
+        )
+
+
+@dataclass
+class EdgeRoutes:
+    """The apps currently routed through the edge and their per-PoP request
+    rate, ordered busiest first."""
+
+    window_minutes: int = 0
+    apps: List[EdgeRouteApp] = field(default_factory=list)
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "EdgeRoutes":
+        return cls(
+            window_minutes=d.get("window_minutes", 0),
+            apps=[EdgeRouteApp.from_dict(a) for a in (d.get("apps") or [])],
+            raw=d,
+        )
+
+
 # ---- Edge access-log drains ----
 
 # How a log drain transforms the client IP before a line leaves the platform.
