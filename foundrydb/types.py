@@ -2476,6 +2476,61 @@ class FilesService:
 
 
 @dataclass
+class FilesUsagePoint:
+    """One time-bucketed sample of a bucket's storage footprint."""
+
+    timestamp: str
+    bytes: int
+    objects: int
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "FilesUsagePoint":
+        return cls(
+            timestamp=d.get("timestamp", ""),
+            bytes=int(d.get("bytes", 0)),
+            objects=int(d.get("objects", 0)),
+        )
+
+
+@dataclass
+class FilesUsageCurrent:
+    """Point-in-time storage footprint of a files service."""
+
+    bytes: int
+    objects: int
+    live: bool
+    monthly_cost_eur: float
+    measured_at: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "FilesUsageCurrent":
+        return cls(
+            bytes=int(d.get("bytes", 0)),
+            objects=int(d.get("objects", 0)),
+            live=bool(d.get("live", False)),
+            monthly_cost_eur=float(d.get("monthly_cost_eur", 0.0)),
+            measured_at=d.get("measured_at"),
+        )
+
+
+@dataclass
+class FilesUsage:
+    """Storage-usage payload: the current footprint plus an over-time series."""
+
+    current: FilesUsageCurrent
+    series: List[FilesUsagePoint]
+    granularity: str  # "hour" | "day"
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "FilesUsage":
+        return cls(
+            current=FilesUsageCurrent.from_dict(d.get("current", {})),
+            series=[FilesUsagePoint.from_dict(p) for p in d.get("series", [])],
+            granularity=d.get("granularity", ""),
+        )
+
+
+@dataclass
 class FilesPolicyStatement:
     """One statement of a custom inline access-key policy.
 

@@ -18,7 +18,22 @@ from .types import (
     FilesKeyPolicy,
     FilesPresignedURL,
     FilesObjectPage,
+    FilesUsage,
 )
+
+
+def _files_usage_params(
+    range_: str, granularity: str, live: bool
+) -> Optional[Dict[str, Any]]:
+    """Build the query params for a files usage request."""
+    params: Dict[str, Any] = {}
+    if range_:
+        params["range"] = range_
+    if granularity:
+        params["granularity"] = granularity
+    if live:
+        params["live"] = "true"
+    return params or None
 
 
 def _files_access_key_body(
@@ -65,6 +80,27 @@ class FileServicesAPI:
                 return None
             raise
         return FilesService.from_dict(data)
+
+    def get_usage(
+        self,
+        service_id: str,
+        *,
+        range: str = "",
+        granularity: str = "",
+        live: bool = False,
+    ) -> FilesUsage:
+        """Return storage-usage monitoring for a files service.
+
+        Args:
+            service_id: ID of the file service.
+            range: History window, e.g. ``"30d"`` or ``"24h"`` (default 30d).
+            granularity: ``"hour"`` or ``"day"``; empty auto-selects by window.
+            live: Read the current footprint on demand from the provider
+                instead of the last metering tick.
+        """
+        params = _files_usage_params(range, granularity, live)
+        data = self._http.get(f"/file-services/{service_id}/usage", params=params)
+        return FilesUsage.from_dict(data)
 
     def create(
         self,
@@ -256,6 +292,20 @@ class AsyncFileServicesAPI:
                 return None
             raise
         return FilesService.from_dict(data)
+
+    async def get_usage(
+        self,
+        service_id: str,
+        *,
+        range: str = "",
+        granularity: str = "",
+        live: bool = False,
+    ) -> FilesUsage:
+        """Return storage-usage monitoring for a files service (current
+        footprint, live reading, and a storage-over-time series)."""
+        params = _files_usage_params(range, granularity, live)
+        data = await self._http.get(f"/file-services/{service_id}/usage", params=params)
+        return FilesUsage.from_dict(data)
 
     async def create(
         self,
