@@ -2476,6 +2476,50 @@ class FilesService:
 
 
 @dataclass
+class FilesPolicyStatement:
+    """One statement of a custom inline access-key policy.
+
+    The client controls the effect, the S3 actions, and the object-key
+    prefixes; the platform always scopes resource ARNs to the key's own bucket,
+    so a statement can never reach another tenant's data.
+    """
+
+    effect: str  # "Allow" | "Deny"
+    actions: List[str]
+    prefixes: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        d: Dict[str, Any] = {"effect": self.effect, "actions": list(self.actions)}
+        if self.prefixes:
+            d["prefixes"] = list(self.prefixes)
+        return d
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "FilesPolicyStatement":
+        return cls(
+            effect=d.get("effect", ""),
+            actions=list(d.get("actions", [])),
+            prefixes=list(d.get("prefixes", [])),
+        )
+
+
+@dataclass
+class FilesKeyPolicy:
+    """A custom inline policy: statements compiled into a bucket-scoped IAM document."""
+
+    statements: List[FilesPolicyStatement]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"statements": [s.to_dict() for s in self.statements]}
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "FilesKeyPolicy":
+        return cls(
+            statements=[FilesPolicyStatement.from_dict(s) for s in d.get("statements", [])]
+        )
+
+
+@dataclass
 class FilesAccessKey:
     """One scoped S3 credential for a files service.
 
@@ -2495,6 +2539,9 @@ class FilesAccessKey:
     updated_at: str
     user_id: str = ""
     organization_id: Optional[str] = None
+    # Custom policy the key was minted with, when created from a statement list
+    # rather than the prefix + permission shorthand. None for shorthand keys.
+    inline_policy: Optional[FilesKeyPolicy] = None
     last_used_at: Optional[str] = None
     revoked_at: Optional[str] = None
     raw: Dict[str, Any] = field(default_factory=dict, repr=False)
@@ -2514,6 +2561,11 @@ class FilesAccessKey:
             updated_at=d.get("updated_at", ""),
             user_id=d.get("user_id", ""),
             organization_id=d.get("organization_id"),
+            inline_policy=(
+                FilesKeyPolicy.from_dict(d["inline_policy"])
+                if d.get("inline_policy")
+                else None
+            ),
             last_used_at=d.get("last_used_at"),
             revoked_at=d.get("revoked_at"),
             raw=d,

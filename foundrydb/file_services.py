@@ -8,16 +8,36 @@ bucket is ready.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from .client import HTTPClient, AsyncHTTPClient
 from .types import (
     FilesService,
     FilesAccessKey,
     FilesAccessKeyWithSecret,
+    FilesKeyPolicy,
     FilesPresignedURL,
     FilesObjectPage,
 )
+
+
+def _files_access_key_body(
+    name: str,
+    permissions: Optional[str],
+    prefix: str,
+    policy: Optional[Union["FilesKeyPolicy", Dict[str, Any]]],
+) -> Dict[str, Any]:
+    """Build the create-access-key request body. Scope the key with either the
+    prefix + permissions shorthand or a custom policy (mutually exclusive)."""
+    if policy is not None:
+        pol = policy.to_dict() if isinstance(policy, FilesKeyPolicy) else policy
+        return {"name": name, "policy": pol}
+    body: Dict[str, Any] = {"name": name}
+    if permissions is not None:
+        body["permissions"] = permissions
+    if prefix:
+        body["prefix"] = prefix
+    return body
 
 
 class FileServicesAPI:
@@ -103,8 +123,9 @@ class FileServicesAPI:
         service_id: str,
         *,
         name: str,
-        permissions: str,
+        permissions: Optional[str] = None,
         prefix: str = "",
+        policy: Optional[Union[FilesKeyPolicy, Dict[str, Any]]] = None,
     ) -> FilesAccessKeyWithSecret:
         """Mint a new scoped S3 credential.
 
@@ -112,16 +133,20 @@ class FileServicesAPI:
         store it immediately. Key creation is blocked while the service is
         over its hard storage quota.
 
+        Scope the key with either the ``permissions`` (+ optional ``prefix``)
+        shorthand or a custom ``policy``; the two are mutually exclusive.
+
         Args:
             service_id: ID of the file service.
             name: Human-readable label for the key.
-            permissions: ``"read"``, ``"write"``, or ``"readwrite"``.
+            permissions: ``"read"``, ``"write"``, or ``"readwrite"``. Required
+                unless ``policy`` is given.
             prefix: Object key prefix the credential is scoped to. Empty
-                grants the whole bucket.
+                grants the whole bucket. Ignored when ``policy`` is given.
+            policy: A :class:`FilesKeyPolicy` (or an equivalent dict) of
+                custom statements. Mutually exclusive with permissions/prefix.
         """
-        body: Dict[str, Any] = {"name": name, "permissions": permissions}
-        if prefix:
-            body["prefix"] = prefix
+        body = _files_access_key_body(name, permissions, prefix, policy)
         data = self._http.post(f"/file-services/{service_id}/keys", body)
         return FilesAccessKeyWithSecret.from_dict(data)
 
@@ -269,13 +294,16 @@ class AsyncFileServicesAPI:
         service_id: str,
         *,
         name: str,
-        permissions: str,
+        permissions: Optional[str] = None,
         prefix: str = "",
+        policy: Optional[Union[FilesKeyPolicy, Dict[str, Any]]] = None,
     ) -> FilesAccessKeyWithSecret:
-        """Mint a new scoped S3 credential."""
-        body: Dict[str, Any] = {"name": name, "permissions": permissions}
-        if prefix:
-            body["prefix"] = prefix
+        """Mint a new scoped S3 credential.
+
+        Scope the key with either the ``permissions`` (+ optional ``prefix``)
+        shorthand or a custom ``policy``; the two are mutually exclusive.
+        """
+        body = _files_access_key_body(name, permissions, prefix, policy)
         data = await self._http.post(f"/file-services/{service_id}/keys", body)
         return FilesAccessKeyWithSecret.from_dict(data)
 
