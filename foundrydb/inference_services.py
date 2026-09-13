@@ -30,11 +30,13 @@ from typing import Any, Dict, List, Optional
 
 from .client import AsyncHTTPClient, HTTPClient
 from .types import (
+    InferenceCompanionMutationResult,
     InferenceConfig,
     InferenceFitCheckResult,
     InferenceModelAdapter,
     InferenceModelRate,
     InferenceService,
+    InferenceServiceLogs,
     InferenceServiceMetrics,
     InferenceServiceUsage,
     ServerlessInferenceModel,
@@ -385,6 +387,97 @@ class InferenceServicesAPI:
             body["license_accepted"] = True
         data = self._http.post(f"{self._service(service_id)}/switch-model", body)
         return InferenceService.from_dict(data)
+
+    # ------------------------------------------------------------------
+    # Companion models
+    # ------------------------------------------------------------------
+
+    def add_inference_companion(
+        self, service_id: str, model_id: str
+    ) -> InferenceCompanionMutationResult:
+        """Add a companion model to a dedicated inference service, served
+        alongside its primary on the same card.
+
+        The companion is loaded onto the running GPU and answers on the
+        service's existing OpenAI-compatible endpoint as
+        ``foundrydb_managed/<served_model_name>``; the endpoint hostname, TLS
+        certificate, firewall rules, inference keys, and billing identity are
+        unchanged. Returns the mutation record, the agent task carrying it out,
+        and the resulting served-model set; ``primary_restart_required`` tells
+        you whether applying it briefly interrupts the primary model's serving.
+
+        Args:
+            service_id: Inference service ID.
+            model_id: Curated catalog id of the model to add as a companion. It
+                must fit the remaining VRAM of the plan the service runs on.
+        """
+        data = self._http.post(
+            f"{self._service(service_id)}/companions", {"model_id": model_id}
+        )
+        return InferenceCompanionMutationResult.from_dict(data)
+
+    def remove_inference_companion(
+        self, service_id: str, companion_model_id: str
+    ) -> InferenceCompanionMutationResult:
+        """Remove a previously added companion model from an inference service.
+
+        The companion is unloaded from the running GPU and stops answering on
+        the endpoint; the primary model and every other companion keep serving.
+        Returns the mutation record and the served-model set left after the
+        removal. The primary model cannot be removed this way (switch it in
+        place instead).
+
+        Args:
+            service_id: Inference service ID.
+            companion_model_id: The companion's model id, as carried on the
+                served-model entries returned by
+                :meth:`add_inference_companion` or :meth:`get`.
+        """
+        data = self._http.delete(
+            f"{self._service(service_id)}/companions/{companion_model_id}"
+        )
+        return InferenceCompanionMutationResult.from_dict(data or {})
+
+    # ------------------------------------------------------------------
+    # Serving logs
+    # ------------------------------------------------------------------
+
+    def get_inference_service_logs(
+        self,
+        service_id: str,
+        *,
+        model: Optional[str] = None,
+        lines: Optional[int] = None,
+        since: Optional[str] = None,
+    ) -> InferenceServiceLogs:
+        """Return a slice of the vLLM engine log for one of the service's
+        served models.
+
+        With no ``model`` the primary model's engine log is returned; pass a
+        served model name to read a companion's instead. ``truncated`` is true
+        when the service held more lines than were returned, so the slice is
+        the tail.
+
+        Args:
+            service_id: Inference service ID.
+            model: Served model name whose engine log to read. Empty reads the
+                primary model's log.
+            lines: Maximum number of lines to return (the most recent).
+            since: A duration (for example ``"30m"``, ``"1h"``) or an RFC 3339
+                start time to read from.
+        """
+        params: Dict[str, Any] = {}
+        if model is not None:
+            params["model"] = model
+        if lines is not None:
+            params["lines"] = lines
+        if since is not None:
+            params["since"] = since
+        data = self._http.get(
+            f"{self._service(service_id)}/logs",
+            params=params or None,
+        )
+        return InferenceServiceLogs.from_dict(data)
 
     # ------------------------------------------------------------------
     # Usage and metrics
@@ -755,6 +848,61 @@ class AsyncInferenceServicesAPI:
             f"{self._service(service_id)}/switch-model", body
         )
         return InferenceService.from_dict(data)
+
+    async def add_inference_companion(
+        self, service_id: str, model_id: str
+    ) -> InferenceCompanionMutationResult:
+        """Add a companion model to a dedicated inference service, served
+        alongside its primary on the same card.
+
+        Returns the mutation record, the agent task carrying it out, and the
+        resulting served-model set; ``primary_restart_required`` tells you
+        whether applying it briefly interrupts the primary model's serving.
+        """
+        data = await self._http.post(
+            f"{self._service(service_id)}/companions", {"model_id": model_id}
+        )
+        return InferenceCompanionMutationResult.from_dict(data)
+
+    async def remove_inference_companion(
+        self, service_id: str, companion_model_id: str
+    ) -> InferenceCompanionMutationResult:
+        """Remove a previously added companion model from an inference service.
+
+        The primary model and every other companion keep serving; the primary
+        cannot be removed this way (switch it in place instead).
+        """
+        data = await self._http.delete(
+            f"{self._service(service_id)}/companions/{companion_model_id}"
+        )
+        return InferenceCompanionMutationResult.from_dict(data or {})
+
+    async def get_inference_service_logs(
+        self,
+        service_id: str,
+        *,
+        model: Optional[str] = None,
+        lines: Optional[int] = None,
+        since: Optional[str] = None,
+    ) -> InferenceServiceLogs:
+        """Return a slice of the vLLM engine log for one of the service's
+        served models.
+
+        With no ``model`` the primary model's engine log is returned; pass a
+        served model name to read a companion's instead.
+        """
+        params: Dict[str, Any] = {}
+        if model is not None:
+            params["model"] = model
+        if lines is not None:
+            params["lines"] = lines
+        if since is not None:
+            params["since"] = since
+        data = await self._http.get(
+            f"{self._service(service_id)}/logs",
+            params=params or None,
+        )
+        return InferenceServiceLogs.from_dict(data)
 
     async def get_usage(
         self,

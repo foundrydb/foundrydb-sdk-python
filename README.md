@@ -353,6 +353,9 @@ client.inference_services.delete(svc.id)
 | `list_serverless_models()` | Models a serverless create can bind to now |
 | `check_fit(...)` | VRAM fit preflight; provisions nothing |
 | `switch_model(service_id, ...)` | Swap the served curated model in place |
+| `add_inference_companion(service_id, model_id)` | Serve a companion model alongside the primary |
+| `remove_inference_companion(service_id, companion_model_id)` | Unload a companion model |
+| `get_inference_service_logs(service_id, ...)` | Slice of a served model's vLLM engine log |
 | `get_usage(service_id, ...)` | Metered usage, cost, month-to-date rollup |
 | `get_metrics(service_id, ...)` | Live vLLM and GPU telemetry |
 | `list_adapters(service_id)` | LoRA adapter versions for the service |

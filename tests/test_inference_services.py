@@ -17,11 +17,15 @@ from foundrydb.inference_services import (
 from foundrydb.client import AsyncHTTPClient, HTTPClient
 from foundrydb.types import (
     FoundryDBError,
+    InferenceCompanionMutation,
+    InferenceCompanionMutationResult,
     InferenceConfig,
     InferenceFitCheckResult,
     InferenceModelAdapter,
     InferenceModelRate,
+    InferenceServedModel,
     InferenceService,
+    InferenceServiceLogs,
     InferenceServiceMetrics,
     InferenceServiceUsage,
     ServerlessInferenceModel,
@@ -295,6 +299,66 @@ SERVERLESS_MODEL_PAYLOAD = {
     "capability": "chat",
     "serving": True,
     "deprecated": False,
+}
+
+
+SERVED_PRIMARY_PAYLOAD = {
+    "model_id": "mistral-small",
+    "served_model_name": "mistral-small",
+    "task": "generate",
+    "supports_tool_calling": True,
+    "is_primary": True,
+    "health": "healthy",
+    "health_checked_at": "2026-08-01T03:00:00Z",
+}
+
+SERVED_COMPANION_PAYLOAD = {
+    "model_id": "bge-m3",
+    "served_model_name": "bge-m3",
+    "task": "embed",
+    "supports_tool_calling": False,
+    "is_primary": False,
+    "health": "healthy",
+    "health_checked_at": "2026-08-01T03:00:00Z",
+}
+
+COMPANION_MUTATION_PAYLOAD = {
+    "companion_mutation": {
+        "model_id": "bge-m3",
+        "served_model_name": "bge-m3",
+        "action": "add",
+        "status": "accepted",
+        "message": "",
+        "failure_class": "",
+    },
+    "agent_task_id": "task-777",
+    "served_models": [SERVED_PRIMARY_PAYLOAD, SERVED_COMPANION_PAYLOAD],
+    "primary_restart_required": True,
+}
+
+COMPANION_REMOVE_PAYLOAD = {
+    "companion_mutation": {
+        "model_id": "bge-m3",
+        "served_model_name": "bge-m3",
+        "action": "remove",
+        "status": "accepted",
+        "message": "",
+        "failure_class": "",
+    },
+    "agent_task_id": "task-778",
+    "served_models": [SERVED_PRIMARY_PAYLOAD],
+    "primary_restart_required": False,
+}
+
+LOGS_PAYLOAD = {
+    "unit": "vllm-mistral-small.service",
+    "served_model_name": "mistral-small",
+    "lines": [
+        "INFO 08-01 03:00:00 engine.py started",
+        "INFO 08-01 03:00:05 serving on 0.0.0.0:8000",
+    ],
+    "truncated": True,
+    "fetched_at": "2026-08-01T03:05:00Z",
 }
 
 
@@ -575,6 +639,64 @@ class TestServerlessInferenceModelDecoding:
         assert m.deprecated is False
 
 
+class TestInferenceServedModelDecoding:
+    def test_from_dict_primary(self):
+        m = InferenceServedModel.from_dict(SERVED_PRIMARY_PAYLOAD)
+        assert m.model_id == "mistral-small"
+        assert m.is_primary is True
+        assert m.supports_tool_calling is True
+        assert m.task == "generate"
+        assert m.health == "healthy"
+        assert m.health_checked_at == "2026-08-01T03:00:00Z"
+
+    def test_from_dict_unprobed_has_no_health_timestamp(self):
+        m = InferenceServedModel.from_dict(
+            {"model_id": "bge-m3", "served_model_name": "bge-m3", "task": "embed"}
+        )
+        assert m.is_primary is False
+        assert m.health == ""
+        assert m.health_checked_at is None
+
+
+class TestInferenceCompanionMutationResultDecoding:
+    def test_from_dict_add(self):
+        r = InferenceCompanionMutationResult.from_dict(COMPANION_MUTATION_PAYLOAD)
+        assert isinstance(r.companion_mutation, InferenceCompanionMutation)
+        assert r.companion_mutation.action == "add"
+        assert r.companion_mutation.status == "accepted"
+        assert r.agent_task_id == "task-777"
+        assert len(r.served_models) == 2
+        assert isinstance(r.served_models[0], InferenceServedModel)
+        assert r.primary_restart_required is True
+
+    def test_from_dict_remove_no_primary_restart(self):
+        r = InferenceCompanionMutationResult.from_dict(COMPANION_REMOVE_PAYLOAD)
+        assert r.companion_mutation.action == "remove"
+        assert [m.model_id for m in r.served_models] == ["mistral-small"]
+        assert r.primary_restart_required is False
+
+    def test_from_dict_empty_body(self):
+        r = InferenceCompanionMutationResult.from_dict({})
+        assert r.companion_mutation is None
+        assert r.served_models == []
+        assert r.agent_task_id == ""
+
+
+class TestInferenceServiceLogsDecoding:
+    def test_from_dict(self):
+        logs = InferenceServiceLogs.from_dict(LOGS_PAYLOAD)
+        assert logs.unit == "vllm-mistral-small.service"
+        assert logs.served_model_name == "mistral-small"
+        assert len(logs.lines) == 2
+        assert logs.truncated is True
+        assert logs.fetched_at == "2026-08-01T03:05:00Z"
+
+    def test_from_dict_defaults(self):
+        logs = InferenceServiceLogs.from_dict({"unit": "u"})
+        assert logs.lines == []
+        assert logs.truncated is False
+
+
 # ---------------------------------------------------------------------------
 # Sync InferenceServicesAPI
 # ---------------------------------------------------------------------------
@@ -808,6 +930,76 @@ class TestInferenceServicesAPISync:
         make_sync_api().switch_model(SVC, model_id="qwen3-32b")
         sent = json.loads(route.calls.last.request.content)
         assert sent == {"model_id": "qwen3-32b"}
+
+    @respx.mock
+    def test_add_inference_companion_posts_model_id(self):
+        route = respx.post(f"{BASE}/inference-services/{SVC}/companions").mock(
+            return_value=httpx.Response(202, json=COMPANION_MUTATION_PAYLOAD)
+        )
+        result = make_sync_api().add_inference_companion(SVC, "bge-m3")
+        assert isinstance(result, InferenceCompanionMutationResult)
+        assert result.companion_mutation.action == "add"
+        assert result.agent_task_id == "task-777"
+        assert result.primary_restart_required is True
+        assert len(result.served_models) == 2
+        assert route.calls.last.request.method == "POST"
+        assert (
+            route.calls.last.request.url.path
+            == f"/inference-services/{SVC}/companions"
+        )
+        sent = json.loads(route.calls.last.request.content)
+        assert sent == {"model_id": "bge-m3"}
+
+    @respx.mock
+    def test_remove_inference_companion_hits_companion_path(self):
+        route = respx.delete(
+            f"{BASE}/inference-services/{SVC}/companions/bge-m3"
+        ).mock(return_value=httpx.Response(202, json=COMPANION_REMOVE_PAYLOAD))
+        result = make_sync_api().remove_inference_companion(SVC, "bge-m3")
+        assert result.companion_mutation.action == "remove"
+        assert result.primary_restart_required is False
+        assert [m.model_id for m in result.served_models] == ["mistral-small"]
+        assert route.calls.last.request.method == "DELETE"
+        assert (
+            route.calls.last.request.url.path
+            == f"/inference-services/{SVC}/companions/bge-m3"
+        )
+
+    @respx.mock
+    def test_remove_inference_companion_empty_body(self):
+        respx.delete(f"{BASE}/inference-services/{SVC}/companions/bge-m3").mock(
+            return_value=httpx.Response(204, content=b"")
+        )
+        result = make_sync_api().remove_inference_companion(SVC, "bge-m3")
+        assert result.companion_mutation is None
+        assert result.served_models == []
+
+    @respx.mock
+    def test_get_inference_service_logs_with_all_params(self):
+        route = respx.get(f"{BASE}/inference-services/{SVC}/logs").mock(
+            return_value=httpx.Response(200, json=LOGS_PAYLOAD)
+        )
+        logs = make_sync_api().get_inference_service_logs(
+            SVC, model="mistral-small", lines=200, since="30m"
+        )
+        assert isinstance(logs, InferenceServiceLogs)
+        assert logs.truncated is True
+        assert len(logs.lines) == 2
+        params = route.calls.last.request.url.params
+        assert params["model"] == "mistral-small"
+        assert params["lines"] == "200"
+        assert params["since"] == "30m"
+
+    @respx.mock
+    def test_get_inference_service_logs_omits_unset_params(self):
+        route = respx.get(f"{BASE}/inference-services/{SVC}/logs").mock(
+            return_value=httpx.Response(200, json=LOGS_PAYLOAD)
+        )
+        make_sync_api().get_inference_service_logs(SVC)
+        params = route.calls.last.request.url.params
+        assert "model" not in params
+        assert "lines" not in params
+        assert "since" not in params
 
     @respx.mock
     def test_get_usage_returns_usage(self):
@@ -1145,4 +1337,45 @@ class TestAsyncInferenceServicesAPI:
         api = make_async_api()
         rates = await api.list_model_rates()
         assert rates[0].prompt_microcents_per_1k == 28000
+        await api._http.aclose()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_add_inference_companion_posts_model_id(self):
+        route = respx.post(f"{BASE}/inference-services/{SVC}/companions").mock(
+            return_value=httpx.Response(202, json=COMPANION_MUTATION_PAYLOAD)
+        )
+        api = make_async_api()
+        result = await api.add_inference_companion(SVC, "bge-m3")
+        assert isinstance(result, InferenceCompanionMutationResult)
+        assert result.companion_mutation.action == "add"
+        assert result.primary_restart_required is True
+        sent = json.loads(route.calls.last.request.content)
+        assert sent == {"model_id": "bge-m3"}
+        await api._http.aclose()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_remove_inference_companion(self):
+        route = respx.delete(
+            f"{BASE}/inference-services/{SVC}/companions/bge-m3"
+        ).mock(return_value=httpx.Response(202, json=COMPANION_REMOVE_PAYLOAD))
+        api = make_async_api()
+        result = await api.remove_inference_companion(SVC, "bge-m3")
+        assert result.companion_mutation.action == "remove"
+        assert result.primary_restart_required is False
+        assert route.calls.last.request.method == "DELETE"
+        await api._http.aclose()
+
+    @respx.mock
+    @pytest.mark.asyncio
+    async def test_get_inference_service_logs(self):
+        route = respx.get(f"{BASE}/inference-services/{SVC}/logs").mock(
+            return_value=httpx.Response(200, json=LOGS_PAYLOAD)
+        )
+        api = make_async_api()
+        logs = await api.get_inference_service_logs(SVC, model="mistral-small")
+        assert isinstance(logs, InferenceServiceLogs)
+        assert logs.served_model_name == "mistral-small"
+        assert route.calls.last.request.url.params["model"] == "mistral-small"
         await api._http.aclose()

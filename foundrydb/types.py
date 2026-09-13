@@ -3014,6 +3014,11 @@ InferenceFitSuggestionKind = Literal["reduce_context", "fp8_kv_cache", "larger_p
 # Lifecycle status of a LoRA fine-tuned adapter in the serving registry.
 InferenceAdapterStatus = Literal["uploaded", "active", "superseded", "archived"]
 
+# Which way a companion-model mutation moves the served-model set: "add"
+# loads another model alongside the primary on the same card, "remove"
+# unloads a previously added companion.
+InferenceCompanionAction = Literal["add", "remove"]
+
 
 @dataclass
 class InferenceConfig:
@@ -3655,6 +3660,142 @@ class InferenceModelAdapter:
             base_model_license=d.get("base_model_license", ""),
             promoted_at=d.get("promoted_at"),
             deleted_at=d.get("deleted_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class InferenceServedModel:
+    """One model an inference service is serving right now, as it stands on
+    the vLLM engine.
+
+    A dedicated service serves one primary model and may serve additional
+    companion models alongside it on the same card; the primary is marked with
+    ``is_primary``. The service answers to each on its OpenAI-compatible
+    endpoint as ``foundrydb_managed/<served_model_name>``. ``health`` is the
+    engine's last readiness verdict for this served name and
+    ``health_checked_at`` is when it was taken; a served model that has not
+    been probed yet carries an empty health with no timestamp.
+    """
+
+    model_id: str
+    served_model_name: str
+    task: str
+    supports_tool_calling: bool
+    is_primary: bool
+    health: str = ""
+    health_checked_at: Optional[str] = None
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "InferenceServedModel":
+        return cls(
+            model_id=d.get("model_id", ""),
+            served_model_name=d.get("served_model_name", ""),
+            task=d.get("task", ""),
+            supports_tool_calling=d.get("supports_tool_calling", False),
+            is_primary=d.get("is_primary", False),
+            health=d.get("health", ""),
+            health_checked_at=d.get("health_checked_at"),
+            raw=d,
+        )
+
+
+@dataclass
+class InferenceCompanionMutation:
+    """The record of one companion add or remove requested against an
+    inference service.
+
+    ``action`` is ``"add"`` or ``"remove"``, and ``status`` is where that
+    mutation stands. ``message`` carries a human-readable detail and, on a
+    refusal, ``failure_class`` names the machine-readable reason; both are
+    empty when the mutation was accepted cleanly.
+    """
+
+    model_id: str
+    served_model_name: str
+    action: str
+    status: str
+    message: str = ""
+    failure_class: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "InferenceCompanionMutation":
+        return cls(
+            model_id=d.get("model_id", ""),
+            served_model_name=d.get("served_model_name", ""),
+            action=d.get("action", ""),
+            status=d.get("status", ""),
+            message=d.get("message", ""),
+            failure_class=d.get("failure_class", ""),
+            raw=d,
+        )
+
+
+@dataclass
+class InferenceCompanionMutationResult:
+    """The response to a companion add or remove: the mutation record, the
+    agent task carrying it out, and the resulting served-model set.
+
+    ``served_models`` is the full set the service serves once the mutation is
+    reconciled, so a caller need not re-list. ``primary_restart_required`` is
+    true when applying the mutation needs the primary model's vLLM engine to
+    restart (a brief serving interruption on that model), false when the
+    companion is loaded or unloaded without touching the primary.
+    """
+
+    companion_mutation: Optional[InferenceCompanionMutation] = None
+    agent_task_id: str = ""
+    served_models: List[InferenceServedModel] = field(default_factory=list)
+    primary_restart_required: bool = False
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "InferenceCompanionMutationResult":
+        mutation_raw = d.get("companion_mutation")
+        return cls(
+            companion_mutation=(
+                InferenceCompanionMutation.from_dict(mutation_raw)
+                if mutation_raw
+                else None
+            ),
+            agent_task_id=d.get("agent_task_id", ""),
+            served_models=[
+                InferenceServedModel.from_dict(m)
+                for m in d.get("served_models") or []
+            ],
+            primary_restart_required=d.get("primary_restart_required", False),
+            raw=d,
+        )
+
+
+@dataclass
+class InferenceServiceLogs:
+    """A slice of one served model's vLLM engine log for an inference service.
+
+    ``unit`` is the systemd unit the lines were read from and
+    ``served_model_name`` is the model whose engine produced them.
+    ``truncated`` is true when the service held more lines than were returned,
+    so the slice is the tail rather than the whole log. ``fetched_at`` is when
+    the slice was read.
+    """
+
+    unit: str
+    served_model_name: str
+    lines: List[str] = field(default_factory=list)
+    truncated: bool = False
+    fetched_at: str = ""
+    raw: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "InferenceServiceLogs":
+        return cls(
+            unit=d.get("unit", ""),
+            served_model_name=d.get("served_model_name", ""),
+            lines=list(d.get("lines") or []),
+            truncated=d.get("truncated", False),
+            fetched_at=d.get("fetched_at", ""),
             raw=d,
         )
 
